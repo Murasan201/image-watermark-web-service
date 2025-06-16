@@ -64,8 +64,8 @@ export default function AuthPage() {
               placeholder="202501-XXXXX"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              maxLength={12}
-              pattern="[0-9]{6}-[A-Z0-9]{5}"
+              maxLength={20}
+              pattern="[0-9]{6}-[A-Z0-9]+"
             />
           </div>
 
