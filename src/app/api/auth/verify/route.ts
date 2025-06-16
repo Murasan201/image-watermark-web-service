@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
     
     // コード形式チェック（YYYYMM-XXXXX）
-    const codePattern = /^\d{6}-[A-Z0-9]{5}$/;
+    const codePattern = /^\d{6}-[A-Z0-9]+$/;
     if (!codePattern.test(code)) {
       return NextResponse.json(
         { error: '招待コードの形式が正しくありません' },
