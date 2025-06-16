@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   // 認証が不要なパス
-  const publicPaths = ['/auth', '/api/auth/verify', '/api/debug'];
+  const publicPaths = ['/auth', '/api/auth/verify', '/api/debug', '/api/update-sample'];
   const isPublicPath = publicPaths.some(path => 
     request.nextUrl.pathname.startsWith(path)
   );
