@@ -12,4 +12,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
+// データベース接続を取得する関数
+export const getDb = () => pool;
+
 export { pool };
