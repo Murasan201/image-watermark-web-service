@@ -32,6 +32,16 @@ interface WatermarkSettings {
   color: string;
 }
 
+interface QueueStatus {
+  userQueue: any;
+  userPosition: number | null;
+  queueStats: {
+    totalWaiting: number;
+    processingCount: number;
+    nextPosition: number;
+  };
+}
+
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +49,12 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<'warning' | 'error' | 'info'>('error');
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [isInQueue, setIsInQueue] = useState(false);
+  const [queuePolling, setQueuePolling] = useState<NodeJS.Timeout | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [currentProcessingFile, setCurrentProcessingFile] = useState<string | null>(null);
   const [watermarkSettings, setWatermarkSettings] = useState<WatermarkSettings>({
     text: 'Sample Watermark',
     fontSize: 36,
@@ -59,6 +75,32 @@ export default function Home() {
     checkSession();
   }, []);
 
+  useEffect(() => {
+    // コンポーネントアンマウント時にポーリングをクリア
+    return () => {
+      if (queuePolling) {
+        clearInterval(queuePolling);
+      }
+    };
+  }, [queuePolling]);
+
+  // 離脱防止機能
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (processing || isInQueue) {
+        e.preventDefault();
+        e.returnValue = '処理中または待機中です。このページを離れると処理が中断されます。本当に離れますか？';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [processing, isInQueue]);
+
   const checkSession = async () => {
     try {
       const response = await fetch('/api/auth/session');
@@ -78,11 +120,191 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
+      // キューポーリングを停止
+      if (queuePolling) {
+        clearInterval(queuePolling);
+        setQueuePolling(null);
+      }
+      
+      // キューからの退出
+      if (isInQueue) {
+        await fetch('/api/queue', { method: 'DELETE' });
+      }
+      
       await fetch('/api/auth/session', { method: 'DELETE' });
       router.push('/auth');
     } catch (error) {
       console.error('Logout failed:', error);
     }
+  };
+
+  // キューステータスを取得
+  const checkQueueStatus = async () => {
+    try {
+      const response = await fetch('/api/queue');
+      if (response.ok) {
+        const data = await response.json();
+        setQueueStatus(data);
+        
+        // ユーザーがキューにいる場合
+        if (data.userQueue) {
+          setIsInQueue(true);
+          
+          // 処理開始可能になった場合
+          if (data.userQueue.status === 'processing' && !processing) {
+            console.log('Processing can start now');
+            setIsInQueue(false);
+            if (queuePolling) {
+              clearInterval(queuePolling);
+              setQueuePolling(null);
+            }
+          }
+        } else {
+          setIsInQueue(false);
+        }
+      }
+    } catch (error) {
+      console.error('Queue status check failed:', error);
+    }
+  };
+
+  // キューに参加
+  const joinQueue = async () => {
+    try {
+      const response = await fetch('/api/queue', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        setQueueStatus(data);
+        
+        if (data.canStartImmediately) {
+          // 即座に処理開始可能
+          console.log('Can start processing immediately');
+          return true;
+        } else {
+          // キューで待機
+          setIsInQueue(true);
+          startQueuePolling();
+          return false;
+        }
+      } else {
+        setError(data.message || 'キューへの参加に失敗しました');
+        return false;
+      }
+    } catch (error) {
+      console.error('Queue join failed:', error);
+      setError('キューへの参加に失敗しました');
+      return false;
+    }
+  };
+
+  // キューポーリング開始
+  const startQueuePolling = () => {
+    if (queuePolling) {
+      clearInterval(queuePolling);
+    }
+    
+    const interval = setInterval(checkQueueStatus, 2000); // 2秒間隔
+    setQueuePolling(interval);
+  };
+
+  // キューから退出
+  const leaveQueue = async () => {
+    try {
+      const response = await fetch('/api/queue', { method: 'DELETE' });
+      if (response.ok) {
+        setIsInQueue(false);
+        setQueueStatus(null);
+        
+        if (queuePolling) {
+          clearInterval(queuePolling);
+          setQueuePolling(null);
+        }
+      }
+    } catch (error) {
+      console.error('Queue leave failed:', error);
+    }
+  };
+
+  // 処理完了をキューに通知
+  const completeQueue = async () => {
+    try {
+      await fetch('/api/queue?action=complete', { method: 'DELETE' });
+      setIsInQueue(false);
+      setQueueStatus(null);
+    } catch (error) {
+      console.error('Queue completion failed:', error);
+    }
+  };
+
+  // エラー表示ヘルパー関数
+  const showError = (message: string, type: 'warning' | 'error' | 'info' = 'error') => {
+    setError(message);
+    setErrorType(type);
+  };
+
+  const clearError = () => {
+    setError(null);
+    setErrorType('error');
+  };
+
+  // ユーザーフレンドリーなエラーメッセージ変換
+  const getFriendlyErrorMessage = (error: Error | string): { message: string; type: 'warning' | 'error' | 'info' } => {
+    const errorMessage = typeof error === 'string' ? error : error.message;
+    
+    // ファイルサイズエラー
+    if (errorMessage.includes('3MB') || errorMessage.includes('15MB')) {
+      return {
+        message: `${errorMessage}\n\n💡 解決方法：\n・画像を圧縮してサイズを小さくしてください\n・複数ファイルの場合は、数を減らしてください`,
+        type: 'warning'
+      };
+    }
+    
+    // ファイル形式エラー
+    if (errorMessage.includes('.jpg') || errorMessage.includes('.jpeg')) {
+      return {
+        message: `${errorMessage}\n\n💡 解決方法：\n・ファイルを .jpg または .jpeg 形式に変換してください\n・画像編集ソフトで保存し直してください`,
+        type: 'warning'
+      };
+    }
+    
+    // キューエラー
+    if (errorMessage.includes('キュー') || errorMessage.includes('待機')) {
+      return {
+        message: `${errorMessage}\n\n💡 現在多くのユーザーが利用中です。しばらくお待ちください。`,
+        type: 'info'
+      };
+    }
+    
+    // 処理失敗エラー
+    if (errorMessage.includes('処理に失敗')) {
+      return {
+        message: `${errorMessage}\n\n💡 解決方法：\n・画像ファイルが破損していないか確認してください\n・別の画像で試してみてください\n・ブラウザを再読み込みしてみてください`,
+        type: 'error'
+      };
+    }
+    
+    // ZIP作成エラー
+    if (errorMessage.includes('ZIP')) {
+      return {
+        message: `${errorMessage}\n\n💡 代替手段：\n・個別ダウンロードをご利用ください\n・ファイル数を減らして再試行してください`,
+        type: 'warning'
+      };
+    }
+    
+    // ネットワークエラー
+    if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+      return {
+        message: `ネットワーク接続に問題があります。\n\n💡 解決方法：\n・インターネット接続を確認してください\n・しばらく待ってから再試行してください`,
+        type: 'error'
+      };
+    }
+    
+    // デフォルト
+    return {
+      message: `${errorMessage}\n\n💡 問題が続く場合は、ページを再読み込みしてみてください。`,
+      type: 'error'
+    };
   };
 
   const validateFile = (file: File): string | null => {
@@ -127,7 +349,8 @@ export default function Home() {
     for (const file of fileArray) {
       const error = validateFile(file);
       if (error) {
-        setError(error);
+        const friendlyError = getFriendlyErrorMessage(error);
+        showError(friendlyError.message, friendlyError.type);
         return;
       }
     }
@@ -136,7 +359,8 @@ export default function Home() {
     const allFiles = [...uploadedFiles.map(uf => uf.file), ...fileArray];
     const validationError = validateFileSet(allFiles);
     if (validationError) {
-      setError(validationError);
+      const friendlyError = getFriendlyErrorMessage(validationError);
+      showError(friendlyError.message, friendlyError.type);
       return;
     }
 
@@ -188,7 +412,7 @@ export default function Home() {
       }
     });
     setUploadedFiles([]);
-    setError(null);
+    clearError();
   };
 
   const processImages = async () => {
@@ -197,8 +421,17 @@ export default function Home() {
       return;
     }
 
-    setProcessing(true);
     setError(null);
+
+    // キューに参加
+    const canStartImmediately = await joinQueue();
+    
+    if (!canStartImmediately) {
+      // キューで待機中
+      return;
+    }
+
+    setProcessing(true);
 
     try {
       // 自動振り分けロジック
@@ -236,13 +469,25 @@ export default function Home() {
       setError(error instanceof Error ? error.message : '画像処理に失敗しました');
     } finally {
       setProcessing(false);
+      // プログレスリセット
+      setProcessingProgress(0);
+      setCurrentProcessingFile(null);
+      // キューから退出
+      await completeQueue();
     }
   };
 
   const processImagesClient = async () => {
     const processedFiles: UploadedFile[] = [];
+    const failedFiles: string[] = [];
 
-    for (const uploadedFile of uploadedFiles) {
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const uploadedFile = uploadedFiles[i];
+      
+      // プログレス更新
+      setCurrentProcessingFile(uploadedFile.file.name);
+      setProcessingProgress((i / uploadedFiles.length) * 100);
+      
       try {
         const processedUrl = await applyWatermarkCanvas(uploadedFile.file, watermarkSettings);
         
@@ -258,15 +503,36 @@ export default function Home() {
         });
       } catch (error) {
         console.error(`Failed to process ${uploadedFile.file.name}:`, error);
-        throw new Error(`${uploadedFile.file.name} の処理に失敗しました`);
+        failedFiles.push(uploadedFile.file.name);
+        
+        // 失敗したファイルも配列に追加（処理済みなしで）
+        processedFiles.push({
+          ...uploadedFile,
+          isShowingProcessed: false
+        });
       }
     }
 
     setUploadedFiles(processedFiles);
+
+    // プログレス完了
+    setProcessingProgress(100);
+    setCurrentProcessingFile(null);
+
+    // 部分失敗の場合はエラーメッセージを表示
+    if (failedFiles.length > 0) {
+      const successCount = uploadedFiles.length - failedFiles.length;
+      const friendlyError = getFriendlyErrorMessage(`${failedFiles.length}個のファイル処理に失敗しました (${successCount}個は正常に処理されました): ${failedFiles.join(', ')}`);
+      showError(friendlyError.message, friendlyError.type);
+    }
   };
 
   const processImagesServer = async () => {
     const formData = new FormData();
+    
+    // プログレス開始
+    setCurrentProcessingFile('サーバーで処理中...');
+    setProcessingProgress(10);
     
     // ファイルを追加
     uploadedFiles.forEach(uploadedFile => {
@@ -276,11 +542,15 @@ export default function Home() {
     // ウォーターマーク設定を追加
     formData.append('settings', JSON.stringify(watermarkSettings));
 
+    setProcessingProgress(30);
+
     try {
       const response = await fetch('/api/process-images', {
         method: 'POST',
         body: formData,
       });
+
+      setProcessingProgress(70);
 
       const result = await response.json();
 
@@ -290,21 +560,41 @@ export default function Home() {
 
       // 処理済み画像をファイルリストに反映
       const processedFiles: UploadedFile[] = uploadedFiles.map((uploadedFile, index) => {
-        const processedFile = result.processedFiles[index];
+        const processedFile = result.processedFiles?.[index];
         
         // 既存の処理済み画像URLがあれば解放
         if (uploadedFile.processed) {
           URL.revokeObjectURL(uploadedFile.processed);
         }
 
-        return {
-          ...uploadedFile,
-          processed: processedFile.processedDataUrl,
-          isShowingProcessed: true
-        };
+        if (processedFile && processedFile.processedDataUrl) {
+          return {
+            ...uploadedFile,
+            processed: processedFile.processedDataUrl,
+            isShowingProcessed: true
+          };
+        } else {
+          // 処理に失敗したファイル
+          return {
+            ...uploadedFile,
+            isShowingProcessed: false
+          };
+        }
       });
 
       setUploadedFiles(processedFiles);
+
+      // プログレス完了
+      setProcessingProgress(100);
+      setCurrentProcessingFile(null);
+
+      // 部分失敗チェック
+      const failedCount = uploadedFiles.length - (result.processedFiles?.length || 0);
+      if (failedCount > 0) {
+        const successCount = result.processedFiles?.length || 0;
+        const friendlyError = getFriendlyErrorMessage(`${failedCount}個のファイル処理に失敗しました (${successCount}個は正常に処理されました)`);
+        showError(friendlyError.message, friendlyError.type);
+      }
       
     } catch (error) {
       console.error('Server processing failed:', error);
@@ -629,15 +919,79 @@ export default function Home() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* キュー待機表示 */}
+        {isInQueue && queueStatus && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+            <div className="flex items-center space-x-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+              <div>
+                <h2 className="text-lg font-semibold text-yellow-800">処理待機中</h2>
+                {queueStatus.userPosition && (
+                  <p className="text-yellow-700">
+                    順番待ち中... あと{queueStatus.userPosition}人待ちです
+                  </p>
+                )}
+                <p className="text-yellow-700 text-sm">
+                  現在の待機者数: {queueStatus.queueStats.totalWaiting}人 | 
+                  処理中: {queueStatus.queueStats.processingCount}人
+                </p>
+                <p className="text-yellow-600 text-xs mt-2">
+                  ⏰ 最大10分でタイムアウトします。この画面を離れないでください。
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={leaveQueue}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+              >
+                キューから退出
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* プログレスバー表示 */}
+        {processing && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+            <div className="flex items-center space-x-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-blue-800">画像処理中</h2>
+                {currentProcessingFile && (
+                  <p className="text-blue-700 text-sm">
+                    処理中: {currentProcessingFile}
+                  </p>
+                )}
+                <div className="mt-3">
+                  <div className="flex justify-between text-sm text-blue-600 mb-1">
+                    <span>進捗</span>
+                    <span>{Math.round(processingProgress)}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${processingProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <p className="text-blue-600 text-xs mt-2">
+                  ⚠️ 処理中はこの画面を離れないでください
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
           {/* ファイルアップロード */}
-          <div className="lg:col-span-2">
+          <div className="xl:col-span-2">
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-semibold mb-4">ファイルアップロード</h2>
               
               {/* ドラッグ&ドロップエリア */}
               <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                className={`border-2 border-dashed rounded-lg p-4 sm:p-8 text-center cursor-pointer transition-colors ${
                   isDragging 
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-300 hover:border-gray-400'
@@ -671,19 +1025,70 @@ export default function Home() {
 
               {/* エラー表示 */}
               {error && (
-                <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-700">{error}</p>
+                <div className={`mt-4 rounded-lg p-4 ${
+                  errorType === 'warning' 
+                    ? 'bg-yellow-50 border border-yellow-200'
+                    : errorType === 'info'
+                    ? 'bg-blue-50 border border-blue-200'
+                    : 'bg-red-50 border border-red-200'
+                }`}>
+                  <div className="flex items-start space-x-3">
+                    <div className={`flex-shrink-0 ${
+                      errorType === 'warning' 
+                        ? 'text-yellow-500'
+                        : errorType === 'info'
+                        ? 'text-blue-500'
+                        : 'text-red-500'
+                    }`}>
+                      {errorType === 'warning' ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      ) : errorType === 'info' ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <pre className={`text-sm whitespace-pre-line ${
+                        errorType === 'warning' 
+                          ? 'text-yellow-700'
+                          : errorType === 'info'
+                          ? 'text-blue-700'
+                          : 'text-red-700'
+                      }`}>
+                        {error}
+                      </pre>
+                      <button
+                        onClick={clearError}
+                        className={`mt-2 text-xs underline ${
+                          errorType === 'warning' 
+                            ? 'text-yellow-600 hover:text-yellow-800'
+                            : errorType === 'info'
+                            ? 'text-blue-600 hover:text-blue-800'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
+                      >
+                        メッセージを閉じる
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* アップロードファイル一覧 */}
               {uploadedFiles.length > 0 && (
                 <div className="mt-6">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                     <h3 className="text-lg font-medium">アップロード済みファイル ({uploadedFiles.length}/5)</h3>
                     <button
                       onClick={clearAllFiles}
-                      className="text-red-600 hover:text-red-800 text-sm"
+                      className="text-red-600 hover:text-red-800 text-sm self-start sm:self-auto"
                     >
                       すべて削除
                     </button>
@@ -692,7 +1097,7 @@ export default function Home() {
                   <div className="space-y-4">
                     {uploadedFiles.map(file => (
                       <div key={file.id} className="p-4 border rounded-lg">
-                        <div className="flex items-center space-x-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                           <div className="flex-shrink-0">
                             <div className="relative">
                               <img
@@ -736,7 +1141,7 @@ export default function Home() {
                           </div>
                         </div>
                         
-                        <div className="flex space-x-2 mt-3">
+                        <div className="flex flex-wrap gap-2 mt-3">
                           {file.processed && (
                             <>
                               <button
@@ -952,14 +1357,14 @@ export default function Home() {
             <div className="mt-6 space-y-3">
               <button
                 onClick={processImages}
-                disabled={uploadedFiles.length === 0 || processing}
+                disabled={uploadedFiles.length === 0 || processing || isInQueue}
                 className={`w-full py-3 px-4 rounded-lg font-medium ${
-                  uploadedFiles.length === 0 || processing
+                  uploadedFiles.length === 0 || processing || isInQueue
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600'
                 } transition-colors`}
               >
-                {processing ? '処理中...' : 'ウォーターマークを適用'}
+                {processing ? '処理中...' : isInQueue ? 'キュー待機中...' : 'ウォーターマークを適用'}
               </button>
 
               {uploadedFiles.some(f => f.processed) && (
