@@ -203,8 +203,8 @@ export async function DELETE() {
   }
 }
 
-// 外部から利用する復号化関数をエクスポート
-export async function getDecryptedWebhookUrl(): Promise<string | null> {
+// 内部利用のみの復号化関数（エクスポートしない）
+async function getDecryptedWebhookUrl(): Promise<string | null> {
   try {
     const db = await getDb();
     const result = await db.query(

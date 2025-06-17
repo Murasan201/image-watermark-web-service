@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/database';
-import { getDecryptedWebhookUrl } from '../slack-settings/route';
+import { createDecipheriv } from 'crypto';
+
+// 暗号化キー（環境変数から取得）
+const ENCRYPT_KEY = process.env.ENCRYPT_KEY || 'default-32-char-key-change-prod!!';
+
+// Webhook URL復号化
+function decryptWebhookUrl(encrypted: string, iv: string): string {
+  const decipher = createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPT_KEY), Buffer.from(iv, 'hex'));
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// Webhook URL取得関数
+async function getDecryptedWebhookUrl(): Promise<string | null> {
+  try {
+    const db = await getDb();
+    const result = await db.query(
+      'SELECT setting_value, encrypted_iv FROM admin_settings WHERE setting_key = $1',
+      ['slack_webhook']
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const setting = result.rows[0];
+    return decryptWebhookUrl(setting.setting_value, setting.encrypted_iv);
+    
+  } catch (error) {
+    console.error('Get decrypted webhook URL error:', error);
+    return null;
+  }
+}
 
 // 招待コード生成
 export async function POST(request: NextRequest) {
