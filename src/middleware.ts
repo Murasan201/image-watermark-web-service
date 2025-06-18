@@ -27,6 +27,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // 管理者ログインページは認証不要
+    if (request.nextUrl.pathname === '/admin/login') {
+      return NextResponse.next();
+    }
+
     // 管理画面は管理者認証が必要
     const adminToken = request.cookies.get('admin-token')?.value;
     
