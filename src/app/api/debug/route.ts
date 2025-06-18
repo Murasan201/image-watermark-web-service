@@ -22,7 +22,14 @@ export async function GET() {
         invitation_codes: codesResult.rows,
         environment: {
           has_database_url: !!process.env.DATABASE_URL,
-          database_url_length: process.env.DATABASE_URL?.length || 0
+          database_url_length: process.env.DATABASE_URL?.length || 0,
+          has_admin_username: !!process.env.ADMIN_USERNAME,
+          admin_username: process.env.ADMIN_USERNAME,
+          has_admin_password_hash: !!process.env.ADMIN_PASSWORD_HASH,
+          admin_password_hash_length: process.env.ADMIN_PASSWORD_HASH?.length || 0,
+          admin_password_hash_prefix: process.env.ADMIN_PASSWORD_HASH?.substring(0, 10) || 'none',
+          has_jwt_secret: !!process.env.JWT_SECRET,
+          jwt_secret_length: process.env.JWT_SECRET?.length || 0
         }
       });
     } finally {
@@ -36,7 +43,14 @@ export async function GET() {
       error: error instanceof Error ? error.message : 'Unknown error',
       environment: {
         has_database_url: !!process.env.DATABASE_URL,
-        database_url_length: process.env.DATABASE_URL?.length || 0
+        database_url_length: process.env.DATABASE_URL?.length || 0,
+        has_admin_username: !!process.env.ADMIN_USERNAME,
+        admin_username: process.env.ADMIN_USERNAME,
+        has_admin_password_hash: !!process.env.ADMIN_PASSWORD_HASH,
+        admin_password_hash_length: process.env.ADMIN_PASSWORD_HASH?.length || 0,
+        admin_password_hash_prefix: process.env.ADMIN_PASSWORD_HASH?.substring(0, 10) || 'none',
+        has_jwt_secret: !!process.env.JWT_SECRET,
+        jwt_secret_length: process.env.JWT_SECRET?.length || 0
       }
     }, { status: 500 });
   }
