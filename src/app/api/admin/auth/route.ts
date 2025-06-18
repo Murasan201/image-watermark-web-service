@@ -41,7 +41,17 @@ export async function POST(request: NextRequest) {
     }
 
     // パスワード検証
-    const isPasswordValid = await bcrypt.compare(password, adminPasswordHash);
+    let isPasswordValid = false;
+    try {
+      isPasswordValid = await bcrypt.compare(password, adminPasswordHash);
+    } catch (bcryptError) {
+      console.error('bcrypt comparison error:', bcryptError);
+      return NextResponse.json(
+        { success: false, message: 'パスワード検証でエラーが発生しました' },
+        { status: 500 }
+      );
+    }
+    
     if (!isPasswordValid) {
       return NextResponse.json(
         { success: false, message: '認証に失敗しました' },
@@ -61,15 +71,22 @@ export async function POST(request: NextRequest) {
       .sign(JWT_SECRET);
 
     // データベースに管理者セッションを記録
-    const db = await getDb();
-    const sessionId = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間後
+    let sessionId;
+    try {
+      const db = await getDb();
+      sessionId = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間後
 
-    await db.query(
-      `INSERT INTO admin_sessions (session_id, username, expires_at, created_at) 
-       VALUES ($1, $2, $3, NOW())`,
-      [sessionId, adminUsername, expiresAt]
-    );
+      await db.query(
+        `INSERT INTO admin_sessions (session_id, username, expires_at, created_at) 
+         VALUES ($1, $2, $3, NOW())`,
+        [sessionId, adminUsername, expiresAt]
+      );
+    } catch (dbError) {
+      console.error('Database session save error:', dbError);
+      // データベースエラーでも認証は成功させる（セッション記録なしで）
+      sessionId = crypto.randomUUID();
+    }
 
     // レスポンスにクッキーを設定
     const response = NextResponse.json({
