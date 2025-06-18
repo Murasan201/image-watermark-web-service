@@ -3,11 +3,12 @@ import { getDb } from '@/lib/database';
 import { createDecipheriv } from 'crypto';
 
 // 暗号化キー（環境変数から取得）
-const ENCRYPT_KEY = process.env.ENCRYPT_KEY || 'default-32-char-key-change-prod!!';
+const ENCRYPT_KEY_HEX = process.env.ENCRYPT_KEY || 'default-32-char-key-change-prod!!';
+const ENCRYPT_KEY = Buffer.from(ENCRYPT_KEY_HEX, 'hex');
 
 // Webhook URL復号化
 function decryptWebhookUrl(encrypted: string, iv: string): string {
-  const decipher = createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPT_KEY), Buffer.from(iv, 'hex'));
+  const decipher = createDecipheriv('aes-256-cbc', ENCRYPT_KEY, Buffer.from(iv, 'hex'));
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
