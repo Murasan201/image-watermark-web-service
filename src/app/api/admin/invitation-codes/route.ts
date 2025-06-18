@@ -13,7 +13,7 @@ function decryptWebhookUrl(encrypted: string, iv: string): string {
   return decrypted;
 }
 
-// Webhook URL取得関数
+// Webhook URL取得関数（内部使用のみ）
 async function getDecryptedWebhookUrl(): Promise<string | null> {
   try {
     const db = await getDb();

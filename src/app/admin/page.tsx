@@ -139,8 +139,8 @@ export default function AdminPage() {
     } else {
       setSlackForm(prev => ({ ...prev, isLoading: true }));
     }
-    setError('');
-    setSuccess('');
+    setSlackError('');
+    setSlackSuccess('');
 
     try {
       const response = await fetch('/api/admin/slack-settings', {
