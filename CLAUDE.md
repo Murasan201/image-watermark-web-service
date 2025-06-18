@@ -664,6 +664,53 @@ ss -tlnp | grep 3000
 curl -I http://localhost:3000
 ```
 
+#### 問題6の詳細：管理者認証システムのトラブルシューティング（2025/6/18）
+
+**環境**: Vercel本番環境での管理画面アクセス  
+**症状**: `このページは動作していません`、管理画面ログイン不可  
+**原因**: 
+- Vercel環境変数設定の問題
+- 管理認証APIでのbcryptエラー
+- ミドルウェアの無限リダイレクトループ（根本原因）
+
+**解決手順**:
+1. **環境変数再設定**: 管理者認証情報の本番用設定
+   ```bash
+   ADMIN_USERNAME=ml_imageadmin
+   ADMIN_PASSWORD_HASH=$2a$10$ZgSSETieI5f9uhlN48aaMegfiRybBA29l2nFY/tT29mLe0vSpYdyW
+   JWT_SECRET=[64文字ランダム文字列]
+   ENCRYPT_KEY=[32文字ランダム文字列]
+   ```
+
+2. **管理認証API強化**: bcrypt・DB接続エラーハンドリング追加
+   ```javascript
+   // パスワード検証のエラーハンドリング
+   try {
+     isPasswordValid = await bcrypt.compare(password, adminPasswordHash);
+   } catch (bcryptError) {
+     console.error('bcrypt comparison error:', bcryptError);
+     return NextResponse.json({...}, { status: 500 });
+   }
+   ```
+
+3. **ミドルウェア修正**: `/admin/login`パスを認証不要に設定
+   ```javascript
+   // 管理者ログインページは認証不要（重要）
+   if (request.nextUrl.pathname === '/admin/login') {
+     return NextResponse.next();
+   }
+   ```
+
+**予防策**:
+- 新しい認証ページ追加時は、ミドルウェアの認証除外設定を確認
+- Vercel環境変数変更後は必ず強制再デプロイ実行
+- 307リダイレクトエラーは無限ループの可能性を疑う
+- 管理画面関連の問題は段階的に調査（環境変数→API→ミドルウェア）
+
+**最終状態**: ✅ 管理画面ログイン成功、全機能正常動作
+
+**詳細記録**: `TROUBLESHOOTING.md`
+
 ### 📋 次回作業予定（Phase 6: テスト・品質保証）
 
 #### 🧪 テスト計画

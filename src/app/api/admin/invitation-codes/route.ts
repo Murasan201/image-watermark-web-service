@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
     const randomPart = generateRandomCode(5);
     const invitationCode = `${yearMonth}-${randomPart}`;
 
+    // month値を生成（YYYY-MM形式）
+    const monthValue = `${yearNum}-${monthNum.toString().padStart(2, '0')}`;
+
     // 有効期限（当月末）
     const expiresAt = new Date(yearNum, monthNum, 0, 23, 59, 59); // 当月末の23:59:59
 
@@ -83,9 +86,9 @@ export async function POST(request: NextRequest) {
 
     // データベースに保存
     await db.query(
-      `INSERT INTO invitation_codes (code, expires_at, created_at, is_active) 
-       VALUES ($1, $2, NOW(), true)`,
-      [invitationCode, expiresAt]
+      `INSERT INTO invitation_codes (code, month, expires_at, created_at, is_active) 
+       VALUES ($1, $2, $3, NOW(), true)`,
+      [invitationCode, monthValue, expiresAt]
     );
 
     // Slack通知送信（エラーがあっても処理は継続）
@@ -123,11 +126,11 @@ export async function GET() {
         ic.expires_at,
         ic.created_at,
         ic.is_active,
-        ic.used_count,
+        ic.usage_count,
         COUNT(us.session_id) as active_sessions
       FROM invitation_codes ic
-      LEFT JOIN user_sessions us ON ic.code = us.invitation_code AND us.expires_at > NOW()
-      GROUP BY ic.code, ic.expires_at, ic.created_at, ic.is_active, ic.used_count
+      LEFT JOIN user_sessions us ON ic.code = us.code_used
+      GROUP BY ic.code, ic.expires_at, ic.created_at, ic.is_active, ic.usage_count
       ORDER BY ic.created_at DESC
       LIMIT 50
     `);
@@ -137,7 +140,7 @@ export async function GET() {
       expiresAt: row.expires_at,
       createdAt: row.created_at,
       isActive: row.is_active,
-      usedCount: parseInt(row.used_count) || 0,
+      usedCount: parseInt(row.usage_count) || 0,
       activeSessions: parseInt(row.active_sessions) || 0
     }));
 
