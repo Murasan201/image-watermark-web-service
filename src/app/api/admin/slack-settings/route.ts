@@ -105,6 +105,9 @@ export async function POST(request: NextRequest) {
 
     // Webhook URL暗号化
     const { encrypted, iv } = encryptWebhookUrl(webhookUrl);
+    
+    // 暗号化データをJSONで保存
+    const encryptedData = JSON.stringify({ encrypted, iv });
 
     const db = await getDb();
 
@@ -112,9 +115,9 @@ export async function POST(request: NextRequest) {
     await db.query('DELETE FROM admin_settings WHERE setting_key = $1', ['slack_webhook']);
     
     await db.query(
-      `INSERT INTO admin_settings (setting_key, setting_value, encrypted_iv, created_at, updated_at) 
-       VALUES ($1, $2, $3, NOW(), NOW())`,
-      ['slack_webhook', encrypted, iv]
+      `INSERT INTO admin_settings (setting_key, setting_value_encrypted, updated_at) 
+       VALUES ($1, $2, NOW())`,
+      ['slack_webhook', encryptedData]
     );
 
     return NextResponse.json({
@@ -137,7 +140,7 @@ export async function GET() {
     const db = await getDb();
 
     const result = await db.query(
-      'SELECT setting_value, encrypted_iv, updated_at FROM admin_settings WHERE setting_key = $1',
+      'SELECT setting_value_encrypted, updated_at FROM admin_settings WHERE setting_key = $1',
       ['slack_webhook']
     );
 
@@ -152,8 +155,11 @@ export async function GET() {
     const setting = result.rows[0];
 
     try {
+      // 暗号化データを解析
+      const encryptedData = JSON.parse(setting.setting_value_encrypted);
+      
       // 復号化してURL形式チェック（セキュリティのため実際のURLは返さない）
-      const webhookUrl = decryptWebhookUrl(setting.setting_value, setting.encrypted_iv);
+      const webhookUrl = decryptWebhookUrl(encryptedData.encrypted, encryptedData.iv);
       const isValid = validateSlackWebhookUrl(webhookUrl);
 
       return NextResponse.json({
@@ -208,7 +214,7 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
   try {
     const db = await getDb();
     const result = await db.query(
-      'SELECT setting_value, encrypted_iv FROM admin_settings WHERE setting_key = $1',
+      'SELECT setting_value_encrypted FROM admin_settings WHERE setting_key = $1',
       ['slack_webhook']
     );
 
@@ -217,7 +223,8 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
     }
 
     const setting = result.rows[0];
-    return decryptWebhookUrl(setting.setting_value, setting.encrypted_iv);
+    const encryptedData = JSON.parse(setting.setting_value_encrypted);
+    return decryptWebhookUrl(encryptedData.encrypted, encryptedData.iv);
     
   } catch (error) {
     console.error('Get decrypted webhook URL error:', error);

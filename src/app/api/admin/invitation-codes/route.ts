@@ -18,7 +18,7 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
   try {
     const db = await getDb();
     const result = await db.query(
-      'SELECT setting_value, encrypted_iv FROM admin_settings WHERE setting_key = $1',
+      'SELECT setting_value_encrypted FROM admin_settings WHERE setting_key = $1',
       ['slack_webhook']
     );
 
@@ -27,7 +27,8 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
     }
 
     const setting = result.rows[0];
-    return decryptWebhookUrl(setting.setting_value, setting.encrypted_iv);
+    const encryptedData = JSON.parse(setting.setting_value_encrypted);
+    return decryptWebhookUrl(encryptedData.encrypted, encryptedData.iv);
     
   } catch (error) {
     console.error('Get decrypted webhook URL error:', error);

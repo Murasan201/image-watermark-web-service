@@ -271,5 +271,98 @@ curl https://domain.com/api/admin/env-check
 2. 本ドキュメントでの類似問題検索
 3. 段階的な問題切り分け実施
 
+---
+
+## 問題7: 管理画面の招待コード機能エラー
+
+**発生日**: 2025年6月18日  
+**対処日**: 2025年6月18日  
+**環境**: Vercel本番環境、管理画面の招待コード機能  
+**症状**: 
+- 招待コード一覧で「招待コードの取得に失敗しました」表示
+- 招待コード生成ボタンクリック時に「サーバーエラーが発生しました」表示
+
+**エラーログ**:
+```
+Invitation code generation error: error: null value in column "month" of relation "invitation_codes" violates not-null constraint
+Failing row contains (2, 202506-DT1N5, null, 2025-06-18 01:17:02.687249, 2025-06-30 23:59:59, 0, t).
+```
+
+**原因**: 
+- データベーススキーマで`month`カラムがNOT NULL制約で定義されている
+- INSERTクエリで`month`カラムに値を挿入していない
+- カラム名の不整合（`usage_count` vs `used_count`、`code_used` vs `invitation_code`）
+
+**解決手順**:
+
+### 1. INSERTクエリの修正
+monthカラムの値を含むように修正
+```javascript
+// 修正前
+await db.query(
+  `INSERT INTO invitation_codes (code, expires_at, created_at, is_active) 
+   VALUES ($1, $2, NOW(), true)`,
+  [invitationCode, expiresAt]
+);
+
+// 修正後
+const monthValue = `${yearNum}-${monthNum.toString().padStart(2, '0')}`;
+await db.query(
+  `INSERT INTO invitation_codes (code, month, expires_at, created_at, is_active) 
+   VALUES ($1, $2, $3, NOW(), true)`,
+  [invitationCode, monthValue, expiresAt]
+);
+```
+
+### 2. データベーススキーマとの整合性確保
+カラム名をスキーマに合わせて統一
+```javascript
+// SELECTクエリの修正
+// 修正前: ic.used_count
+// 修正後: ic.usage_count
+
+// JOINクエリの修正  
+// 修正前: us.invitation_code
+// 修正後: us.code_used
+
+// 存在しないカラム参照の削除
+// 修正前: us.expires_at > NOW()
+// 修正後: 条件削除（user_sessionsテーブルにexpires_atカラムなし）
+```
+
+### 3. 完全なAPIクエリ修正
+```sql
+SELECT 
+  ic.code,
+  ic.expires_at,
+  ic.created_at,
+  ic.is_active,
+  ic.usage_count,
+  COUNT(us.session_id) as active_sessions
+FROM invitation_codes ic
+LEFT JOIN user_sessions us ON ic.code = us.code_used
+GROUP BY ic.code, ic.expires_at, ic.created_at, ic.is_active, ic.usage_count
+ORDER BY ic.created_at DESC
+LIMIT 50
+```
+
+**最終状態**: ✅ 管理画面の招待コード機能が完全に動作
+- 招待コード一覧の正常表示
+- 招待コード生成の成功
+- 招待コード無効化機能の動作確認
+
+**予防策**:
+- 新しいテーブル作成時は、スキーマとAPIの整合性を最初に確認
+- NOT NULL制約のあるカラムは、INSERTクエリで必ず値を指定
+- データベーススキーマドキュメントの定期的な更新
+- APIとスキーマのカラム名命名規則を統一
+
+**学習ポイント**:
+- データベースエラーログの`Failing row contains`情報が問題特定に重要
+- PostgreSQLのNOT NULL制約エラーは明確な原因を示す
+- テーブル間のJOIN時は両テーブルのカラム存在を確認する
+
+---
+
 **記録の更新**:
 新しい問題が発生した場合は、このファイルに解決方法を追記してください。
