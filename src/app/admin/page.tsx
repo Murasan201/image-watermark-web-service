@@ -23,8 +23,15 @@ export default function AdminPage() {
   const [codes, setCodes] = useState<InvitationCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  
+  // 招待コード関連のメッセージ状態
+  const [codesError, setCodesError] = useState('');
+  const [codesSuccess, setCodesSuccess] = useState('');
+  
+  // Slack設定関連のメッセージ状態
+  const [slackError, setSlackError] = useState('');
+  const [slackSuccess, setSlackSuccess] = useState('');
+  
   const [generateForm, setGenerateForm] = useState({
     year: new Date().getFullYear().toString(),
     month: (new Date().getMonth() + 1).toString()
@@ -51,10 +58,10 @@ export default function AdminPage() {
       if (data.success) {
         setCodes(data.codes);
       } else {
-        setError('招待コード一覧の取得に失敗しました');
+        setCodesError('招待コード一覧の取得に失敗しました');
       }
     } catch (error) {
-      setError('サーバーエラーが発生しました');
+      setCodesError('サーバーエラーが発生しました');
     } finally {
       setIsLoading(false);
     }
@@ -63,8 +70,8 @@ export default function AdminPage() {
   const handleGenerateCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
-    setError('');
-    setSuccess('');
+    setCodesError('');
+    setCodesSuccess('');
 
     try {
       const response = await fetch('/api/admin/invitation-codes', {
@@ -78,13 +85,13 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`招待コード「${data.code}」を生成しました`);
+        setCodesSuccess(`招待コード「${data.code}」を生成しました`);
         fetchCodes(); // 一覧を再取得
       } else {
-        setError(data.message || '招待コードの生成に失敗しました');
+        setCodesError(data.message || '招待コードの生成に失敗しました');
       }
     } catch (error) {
-      setError('サーバーエラーが発生しました');
+      setCodesError('サーバーエラーが発生しました');
     } finally {
       setIsGenerating(false);
     }
@@ -103,13 +110,13 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('招待コードを無効化しました');
+        setCodesSuccess('招待コードを無効化しました');
         fetchCodes(); // 一覧を再取得
       } else {
-        setError(data.message || '無効化に失敗しました');
+        setCodesError(data.message || '無効化に失敗しました');
       }
     } catch (error) {
-      setError('サーバーエラーが発生しました');
+      setCodesError('サーバーエラーが発生しました');
     }
   };
 
@@ -150,16 +157,16 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(data.message);
+        setSlackSuccess(data.message);
         if (!testMode) {
           setSlackForm(prev => ({ ...prev, webhookUrl: '' }));
           fetchSlackSettings(); // 設定を再取得
         }
       } else {
-        setError(data.message || 'Slack設定の保存に失敗しました');
+        setSlackError(data.message || 'Slack設定の保存に失敗しました');
       }
     } catch (error) {
-      setError('サーバーエラーが発生しました');
+      setSlackError('サーバーエラーが発生しました');
     } finally {
       if (testMode) {
         setSlackForm(prev => ({ ...prev, isTesting: false }));
@@ -182,13 +189,13 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Slack通知設定を削除しました');
+        setSlackSuccess('Slack通知設定を削除しました');
         fetchSlackSettings();
       } else {
-        setError(data.message || 'Slack設定の削除に失敗しました');
+        setSlackError(data.message || 'Slack設定の削除に失敗しました');
       }
     } catch (error) {
-      setError('サーバーエラーが発生しました');
+      setSlackError('サーバーエラーが発生しました');
     }
   };
 
@@ -234,15 +241,15 @@ export default function AdminPage() {
                 招待コード生成
               </h3>
               
-              {error && (
+              {codesError && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                  {error}
+                  {codesError}
                 </div>
               )}
               
-              {success && (
+              {codesSuccess && (
                 <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                  {success}
+                  {codesSuccess}
                 </div>
               )}
 
@@ -290,6 +297,18 @@ export default function AdminPage() {
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
                 Slack通知設定
               </h3>
+              
+              {slackError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {slackError}
+                </div>
+              )}
+              
+              {slackSuccess && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                  {slackSuccess}
+                </div>
+              )}
               
               {/* 現在の設定状況 */}
               <div className="mb-4 p-3 bg-gray-50 rounded-md">
