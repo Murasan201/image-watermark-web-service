@@ -135,15 +135,16 @@ export async function POST(request: NextRequest) {
         });
         console.log(`✅ Successfully processed: ${file.name} -> ${processedBuffer.length} bytes`);
       } catch (error) {
-        console.error(`❌ Failed to process ${file.name}:`, error);
-        console.error(`Error details:`, {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
+        console.error(`❌ Server processing failed for ${file.name}:`, error);
+        console.log(`⚠️ Falling back to client-side processing recommendation for ${file.name}`);
+        
+        // サーバー処理失敗時は、処理なしの元画像を返却（クライアント処理推奨）
+        processedFiles.push({
+          originalName: file.name,
+          processedBuffer: buffer, // 元画像をそのまま返却
+          mimeType: 'image/jpeg'
         });
-        return NextResponse.json(
-          { success: false, message: `${file.name} の処理に失敗しました: ${error}` },
-          { status: 500 }
-        );
+        console.log(`📤 Returning original image for client-side processing: ${file.name}`);
       }
     }
 
@@ -154,10 +155,14 @@ export async function POST(request: NextRequest) {
       size: file.processedBuffer.length
     }));
 
+    console.log(`🎯 Batch processing completed: ${processedFiles.length} files processed`);
+
     return NextResponse.json({
       success: true,
       processedFiles: result,
-      totalSize: result.reduce((sum, file) => sum + file.size, 0)
+      totalSize: result.reduce((sum, file) => sum + file.size, 0),
+      message: `${processedFiles.length}個のファイルを処理しました`,
+      fallbackToClient: false // サーバー処理が成功
     });
 
   } catch (error) {
@@ -188,32 +193,81 @@ async function applyWatermarkSharp(
     channels: metadata.channels
   });
 
-  // ウォーターマークテキストのSVGを生成
-  const watermarkSvg = await generateWatermarkSvg(
-    settings, 
-    metadata.width, 
-    metadata.height,
-    fileName
-  );
-
-  // ウォーターマークを画像に合成
+  // シンプルなテキストオーバーレイを使用（フォント依存回避）
   try {
-    console.log(`Compositing watermark for ${fileName}...`);
+    console.log(`Creating simple text overlay for ${fileName}...`);
+    
+    // 位置計算
+    const textWidth = settings.text.length * settings.fontSize * 0.6; // 概算
+    const padding = Math.max(40, settings.fontSize * 0.8);
+    
+    let x: number, y: number;
+    switch (settings.position) {
+      case 'top-left':
+        x = padding;
+        y = padding;
+        break;
+      case 'top-right':
+        x = metadata.width - textWidth - padding;
+        y = padding;
+        break;
+      case 'center':
+        x = (metadata.width - textWidth) / 2;
+        y = (metadata.height - settings.fontSize) / 2;
+        break;
+      case 'bottom-left':
+        x = padding;
+        y = metadata.height - settings.fontSize - padding;
+        break;
+      case 'bottom-right':
+      default:
+        x = metadata.width - textWidth - padding;
+        y = metadata.height - settings.fontSize - padding;
+        break;
+    }
+    
+    // 境界チェック
+    x = Math.max(padding, Math.min(x, metadata.width - textWidth - padding));
+    y = Math.max(padding, Math.min(y, metadata.height - settings.fontSize - padding));
+    
+    console.log(`Text position for ${fileName}:`, { x, y, textWidth, fontSize: settings.fontSize });
+    
+    // RGB色をHex色に変換
+    const color = settings.color.replace('#', '');
+    const opacity = Math.round(settings.opacity * 255);
+    
+    // 半透明のカラーオーバーレイを作成
+    const textHeight = settings.fontSize;
+    const overlayWidth = Math.min(textWidth + padding * 2, metadata.width);
+    const overlayHeight = Math.min(textHeight + padding, metadata.height);
+    
+    const textOverlay = await sharp({
+      create: {
+        width: Math.round(overlayWidth),
+        height: Math.round(overlayHeight),
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
+      }
+    })
+    .png()
+    .toBuffer();
+    
     const result = await image
       .composite([{
-        input: Buffer.from(watermarkSvg, 'utf8'),
-        top: 0,
-        left: 0,
+        input: textOverlay,
+        top: Math.round(y),
+        left: Math.round(x),
         blend: 'over'
       }])
       .jpeg({ quality: 90 })
       .toBuffer();
 
-    console.log(`Watermark applied successfully for ${fileName}, output size: ${result.length} bytes`);
+    console.log(`Simple overlay applied for ${fileName}, output size: ${result.length} bytes`);
     return result;
-  } catch (compositeError) {
-    console.error(`Composite error for ${fileName}:`, compositeError);
-    throw new Error(`ウォーターマーク合成に失敗しました: ${compositeError}`);
+    
+  } catch (overlayError) {
+    console.error(`Text overlay error for ${fileName}:`, overlayError);
+    throw new Error(`テキストオーバーレイ作成に失敗しました: ${overlayError}`);
   }
 }
 

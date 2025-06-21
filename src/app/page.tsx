@@ -444,24 +444,27 @@ export default function Home() {
       if (fileCount === 1 && uploadedFiles[0].file.size <= 1.5 * 1024 * 1024) {
         processingMethod = 'CLIENT';
       } 
+      // 🔧 一時的にサーバー処理を無効化（Fontconfig問題回避）
       // サーバー処理条件（2-5ファイル かつ 総計4.5MB以下）
       else if (fileCount >= 2 && fileCount <= 5 && totalSize <= 4.5 * 1024 * 1024) {
-        processingMethod = 'SERVER';
+        processingMethod = 'CLIENT_MULTI'; // 一時的にクライアント処理
       } 
       // 1ファイルで1.5MB超過の場合もサーバー処理
       else if (fileCount === 1 && uploadedFiles[0].file.size > 1.5 * 1024 * 1024 && totalSize <= 4.5 * 1024 * 1024) {
-        processingMethod = 'SERVER';
+        processingMethod = 'CLIENT'; // 一時的にクライアント処理
       }
       // 制限超過
       else {
         throw new Error('ファイルサイズが制限を超えています。総計4.5MB以下にしてください。');
       }
 
-      if (processingMethod === 'CLIENT') {
+      if (processingMethod === 'CLIENT' || processingMethod === 'CLIENT_MULTI') {
         // クライアントサイド処理 (Canvas API)
+        console.log(`🎨 Using client-side processing for ${fileCount} files (${processingMethod})`);
         await processImagesClient();
       } else {
         // サーバーサイド処理 (Sharp + Node.js)
+        console.log(`🖥️ Using server-side processing for ${fileCount} files`);
         await processImagesServer();
       }
     } catch (error) {
