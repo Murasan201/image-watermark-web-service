@@ -26,6 +26,8 @@
 
 ```
 ・フォントの種類（商用利用可フォントを選択）
+  - システムフォント: Arial, Georgia, Times New Roman, Helvetica
+  - Google Fonts: Noto Sans JP（日本語推奨）, Roboto（シンプル・現代的）, Open Sans（見やすい・クリア）
 ・フォントサイズ（12-500px、スマートステップ対応）
 ・ウォーターマークテキスト
 ・挿入位置（左上/右上/中央/左下/右下）
@@ -117,9 +119,27 @@
 - **DB**：Neon PostgreSQL（無料プラン）
 - **デプロイ**：Vercel CLIによる自動デプロイ
 
-> **注意事項：フォントファイルの事前取得**
->
-> - 商用利用可能なフォントファイルを利用する場合、対象フォントのライセンス確認とファイル取得先（例：Google Fontsや有償フォント提供元）を事前にプロジェクトチームへ提供し、配置方法を要望仕様として明示してください。
+### 5.1 フォント実装状況（2025年6月更新）
+
+#### システムフォント（ブラウザ標準）
+- **Arial, Georgia, Times New Roman, Helvetica**: Canvas API経由で安全に利用可能
+- **商用利用**: ブラウザ経由でのシステムフォント参照は合法的使用
+
+#### Google Fonts実装（next/font/google）
+- **Noto Sans JP**: 日本語フォント、Open Font License
+- **Roboto**: モダンサンセリフ、Open Font License  
+- **Open Sans**: 高い可読性、Open Font License
+- **ライセンス**: すべてGoogle Fonts（Open Font License）で商用利用可能
+- **実装**: Next.js 14のnext/font/googleによる最適化読み込み
+- **ユーザビリティ**: 日本語ユーザー向けに分かりやすいラベル表示
+
+#### フォント選択肢の改善履歴
+```
+2025年6月21日更新:
+- 「Roboto（モダンサンセリフ）」→「Roboto（シンプル・現代的）」
+- 「Open Sans（読みやすいサンセリフ）」→「Open Sans（見やすい・クリア）」
+- 理由: 日本のユーザーにとってより分かりやすい表現に変更
+```
 
 ## 6. 技術的検討・懸念事項
 
