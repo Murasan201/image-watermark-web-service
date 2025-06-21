@@ -706,7 +706,7 @@ curl -I http://localhost:3000
 **解決手順**:
 1. **環境変数再設定**: 管理者認証情報の本番用設定
    ```bash
-   ADMIN_USERNAME=ml_imageadmin
+   ADMIN_USERNAME=[ADMIN_USERNAME]
    ADMIN_PASSWORD_HASH=$2a$10$ZgSSETieI5f9uhlN48aaMegfiRybBA29l2nFY/tT29mLe0vSpYdyW
    JWT_SECRET=[64文字ランダム文字列]
    ENCRYPT_KEY=[32文字ランダム文字列]

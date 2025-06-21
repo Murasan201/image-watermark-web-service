@@ -147,7 +147,7 @@ curl -I http://localhost:3000
 ### Phase 1: 環境変数再設定
 管理者認証情報の本番用設定
 ```bash
-ADMIN_USERNAME=ml_imageadmin
+ADMIN_USERNAME=[ADMIN_USERNAME]
 ADMIN_PASSWORD_HASH=$2a$10$ZgSSETieI5f9uhlN48aaMegfiRybBA29l2nFY/tT29mLe0vSpYdyW
 JWT_SECRET=[64文字ランダム文字列]
 ENCRYPT_KEY=[32文字ランダム文字列]
@@ -228,8 +228,8 @@ if (isAdminPath || isAdminAuthPath) {
 
 **最終的な管理者認証情報**:
 - **URL**: https://image-watermark-web-service.vercel.app/admin/login
-- **管理者ID**: `ml_imageadmin`
-- **パスワード**: `X7AKUJdb`
+- **管理者ID**: `[ADMIN_USERNAME]`
+- **パスワード**: `[ADMIN_PASSWORD]`
 
 ---
 
