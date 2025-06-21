@@ -29,6 +29,28 @@
 - レスポンシブ対応必須
 - アクセシビリティ対応必須
 
+## 🔄 Git・コミットルール
+### コミットメッセージ
+- **言語**: 英語で記載（日本語禁止）
+- **形式**: `Fix:`, `Add:`, `Update:`, `Remove:` 等の接頭辞を使用
+- **詳細**: 変更内容と影響を明確に記載
+- **署名**: `🤖 Generated with [Claude Code](https://claude.ai/code)` を含める
+
+#### 良い例
+```
+Fix: Problem 8 - Complete resolution of watermark issues via client-side processing unification
+
+## Summary
+- Completely resolved watermark positioning and text corruption issues
+- Deprecated server-side processing and unified to client-side processing
+```
+
+#### 悪い例
+```
+修正: 問題8の解決
+サーバー処理を削除
+```
+
 ## 🚨 セキュリティルール
 ### 環境変数・シークレット管理
 - **絶対禁止**: .envファイルや環境変数をGitにコミットしない
