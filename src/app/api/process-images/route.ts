@@ -69,11 +69,11 @@ export async function POST(request: NextRequest) {
     }
 
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    const maxTotalSize = 15 * 1024 * 1024; // 15MB
+    const maxTotalSize = 4.5 * 1024 * 1024; // 4.5MB (Vercel制限)
 
     if (totalSize > maxTotalSize) {
       return NextResponse.json(
-        { success: false, message: 'ファイルの総サイズが15MBを超えています' },
+        { success: false, message: 'ファイルの総サイズが4.5MBを超えています' },
         { status: 400 }
       );
     }
@@ -178,12 +178,13 @@ async function generateWatermarkSvg(
   imageWidth: number,
   imageHeight: number
 ): Promise<string> {
-  // テキストサイズを計算（より正確な計算）
-  const charWidth = settings.fontSize * 0.6; // 文字幅の概算
+  // テキストサイズを計算（日本語・英語対応の改善）
+  const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(settings.text);
+  const charWidth = hasJapanese ? settings.fontSize * 1.0 : settings.fontSize * 0.6;
   const textWidth = settings.text.length * charWidth;
-  const padding = Math.max(20, settings.fontSize * 0.5); // フォントサイズに応じたパディング
+  const padding = Math.max(40, settings.fontSize * 0.8); // パディングを増加
 
-  // 位置計算
+  // 位置計算（中央配置の改善）
   let x: number, y: number;
   switch (settings.position) {
     case 'top-left':
@@ -191,12 +192,12 @@ async function generateWatermarkSvg(
       y = settings.fontSize + padding;
       break;
     case 'top-right':
-      x = Math.max(padding, imageWidth - textWidth - padding);
+      x = imageWidth - textWidth - padding;
       y = settings.fontSize + padding;
       break;
     case 'center':
-      x = Math.max(0, (imageWidth - textWidth) / 2);
-      y = (imageHeight + settings.fontSize) / 2;
+      x = (imageWidth - textWidth) / 2;
+      y = imageHeight / 2 + settings.fontSize / 3; // ベースライン調整
       break;
     case 'bottom-left':
       x = padding;
@@ -204,14 +205,14 @@ async function generateWatermarkSvg(
       break;
     case 'bottom-right':
     default:
-      x = Math.max(padding, imageWidth - textWidth - padding);
+      x = imageWidth - textWidth - padding;
       y = imageHeight - padding;
       break;
   }
 
-  // 座標の境界チェック
-  x = Math.max(0, Math.min(x, imageWidth - textWidth));
-  y = Math.max(settings.fontSize, Math.min(y, imageHeight));
+  // 座標の境界チェック（改善）
+  x = Math.max(padding, Math.min(x, imageWidth - textWidth - padding));
+  y = Math.max(settings.fontSize + padding, Math.min(y, imageHeight - padding));
 
   // デバッグログ
   console.log('SVG generation:', {
@@ -219,7 +220,9 @@ async function generateWatermarkSvg(
     fontSize: settings.fontSize,
     textWidth,
     position: `(${x}, ${y})`,
-    text: settings.text
+    text: settings.text,
+    fontFamily: getFontFamily(settings.fontFamily),
+    hasJapanese
   });
 
   // SVG定義部分
@@ -232,16 +235,20 @@ async function generateWatermarkSvg(
        </defs>`
     : '';
 
+  // フォント指定の改善（Web安全フォント）
+  const fontFamily = getFontFamily(settings.fontFamily);
+  
   // テキスト要素
   const textElement = `
     <text x="${x}" y="${y}" 
-          font-family="${settings.fontFamily}" 
+          font-family="${fontFamily}" 
           font-size="${settings.fontSize}px" 
           font-weight="normal"
           fill="${settings.color}" 
           fill-opacity="${settings.opacity}"
-          ${settings.shadowEnabled ? 'filter="url(#textShadow)"' : ''}
-          dominant-baseline="alphabetic">
+          text-anchor="start"
+          dominant-baseline="alphabetic"
+          ${settings.shadowEnabled ? 'filter="url(#textShadow)"' : ''}>
       ${escapeXml(settings.text)}
     </text>
   `;
@@ -257,6 +264,18 @@ async function generateWatermarkSvg(
   `;
 
   return svg;
+}
+
+function getFontFamily(fontFamily: string): string {
+  // フォント名をサーバー環境で利用可能なものにマッピング
+  const fontMap: { [key: string]: string } = {
+    'Arial': 'Arial, sans-serif',
+    'Georgia': 'Georgia, serif', 
+    'Times New Roman': 'Times, serif',
+    'Helvetica': 'Helvetica, Arial, sans-serif'
+  };
+  
+  return fontMap[fontFamily] || 'Arial, sans-serif';
 }
 
 function escapeXml(text: string): string {
