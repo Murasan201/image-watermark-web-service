@@ -15,6 +15,19 @@ interface WatermarkSettings {
 }
 
 export async function POST(request: NextRequest) {
+  // 🚫 サーバーサイド処理は廃止されました
+  // 全ての画像処理はクライアントサイド（Canvas API）で実行されます
+  return NextResponse.json(
+    { 
+      success: false, 
+      message: 'サーバーサイド画像処理は廃止されました。クライアントサイド処理をご利用ください。',
+      code: 'SERVER_PROCESSING_DEPRECATED'
+    },
+    { status: 410 } // Gone
+  );
+
+  // 以下は無効化されたコード（問題8対策：Fontconfig問題回避のため）
+  /*
   try {
     // Content-Lengthヘッダーをチェック（Vercel制限: 4.5MB）
     const contentLength = request.headers.get('content-length');
@@ -426,4 +439,6 @@ function escapeXml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+  */
 }

@@ -329,11 +329,11 @@ export default function Home() {
       return '一度にアップロードできるファイルは最大5個までです';
     }
 
-    // 総計4.5MB以下（Vercel制限）
+    // 総計15MB以下（クライアント処理統一）
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    const maxTotalSize = 4.5 * 1024 * 1024; // 4.5MB
+    const maxTotalSize = 15 * 1024 * 1024; // 15MB
     if (totalSize > maxTotalSize) {
-      return `ファイルの総サイズが4.5MBを超えています (${(totalSize / 1024 / 1024).toFixed(1)}MB)`;
+      return `ファイルの総サイズが15MBを超えています (${(totalSize / 1024 / 1024).toFixed(1)}MB)`;
     }
 
     return null;
@@ -434,39 +434,22 @@ export default function Home() {
     setProcessing(true);
 
     try {
-      // 自動振り分けロジック
+      // 🎨 新しい統一処理ロジック：全てクライアントサイド処理
       const totalSize = uploadedFiles.reduce((sum, file) => sum + file.file.size, 0);
       const fileCount = uploadedFiles.length;
       
-      let processingMethod: 'CLIENT' | 'SERVER' | 'CLIENT_MULTI';
-      
-      // Canvas API（クライアント処理）条件
-      if (fileCount === 1 && uploadedFiles[0].file.size <= 1.5 * 1024 * 1024) {
-        processingMethod = 'CLIENT';
-      } 
-      // 🔧 一時的にサーバー処理を無効化（Fontconfig問題回避）
-      // サーバー処理条件（2-5ファイル かつ 総計4.5MB以下）
-      else if (fileCount >= 2 && fileCount <= 5 && totalSize <= 4.5 * 1024 * 1024) {
-        processingMethod = 'CLIENT_MULTI'; // 一時的にクライアント処理
-      } 
-      // 1ファイルで1.5MB超過の場合もサーバー処理
-      else if (fileCount === 1 && uploadedFiles[0].file.size > 1.5 * 1024 * 1024 && totalSize <= 4.5 * 1024 * 1024) {
-        processingMethod = 'CLIENT'; // 一時的にクライアント処理
+      // ファイル制限チェック
+      if (fileCount > 5) {
+        throw new Error('一度にアップロードできるファイルは最大5個までです。');
       }
-      // 制限超過
-      else {
-        throw new Error('ファイルサイズが制限を超えています。総計4.5MB以下にしてください。');
+      
+      if (totalSize > 15 * 1024 * 1024) {
+        throw new Error('ファイルの総サイズが15MBを超えています。ファイル数を減らすか、サイズを小さくしてください。');
       }
 
-      if (processingMethod === 'CLIENT' || processingMethod === 'CLIENT_MULTI') {
-        // クライアントサイド処理 (Canvas API)
-        console.log(`🎨 Using client-side processing for ${fileCount} files (${processingMethod})`);
-        await processImagesClient();
-      } else {
-        // サーバーサイド処理 (Sharp + Node.js)
-        console.log(`🖥️ Using server-side processing for ${fileCount} files`);
-        await processImagesServer();
-      }
+      // 🚀 全ファイルをクライアントサイド処理（問題8の根本解決）
+      console.log(`🎨 Using unified client-side processing for ${fileCount} files (total: ${(totalSize / 1024 / 1024).toFixed(1)}MB)`);
+      await processImagesClient();
     } catch (error) {
       console.error('Image processing failed:', error);
       setError(error instanceof Error ? error.message : '画像処理に失敗しました');
@@ -530,99 +513,6 @@ export default function Home() {
     }
   };
 
-  const processImagesServer = async () => {
-    const formData = new FormData();
-    
-    // プログレス開始
-    setCurrentProcessingFile('サーバーで処理中...');
-    setProcessingProgress(10);
-    
-    // ファイルを追加
-    uploadedFiles.forEach(uploadedFile => {
-      formData.append('files', uploadedFile.file);
-    });
-    
-    // ウォーターマーク設定を追加
-    formData.append('settings', JSON.stringify(watermarkSettings));
-
-    setProcessingProgress(30);
-
-    try {
-      const response = await fetch('/api/process-images', {
-        method: 'POST',
-        body: formData,
-      });
-
-      setProcessingProgress(70);
-
-      // レスポンスがJSONかどうかをチェック
-      let result;
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
-        result = await response.json();
-      } else {
-        // JSONでない場合（HTMLエラーページなど）
-        const text = await response.text();
-        if (response.status === 413) {
-          throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
-        } else if (text.includes('Request Entity Too Large')) {
-          throw new Error('ファイルサイズが大きすぎます。ファイル数を減らすか、サイズを小さくしてください。');
-        } else {
-          throw new Error(`サーバーエラーが発生しました (${response.status})`);
-        }
-      }
-
-      if (!result.success) {
-        if (result.code === 'REQUEST_TOO_LARGE') {
-          throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
-        }
-        throw new Error(result.message || 'サーバー処理に失敗しました');
-      }
-
-      // 処理済み画像をファイルリストに反映
-      const processedFiles: UploadedFile[] = uploadedFiles.map((uploadedFile, index) => {
-        const processedFile = result.processedFiles?.[index];
-        
-        // 既存の処理済み画像URLがあれば解放
-        if (uploadedFile.processed) {
-          URL.revokeObjectURL(uploadedFile.processed);
-        }
-
-        if (processedFile && processedFile.processedDataUrl) {
-          return {
-            ...uploadedFile,
-            processed: processedFile.processedDataUrl,
-            isShowingProcessed: true
-          };
-        } else {
-          // 処理に失敗したファイル
-          return {
-            ...uploadedFile,
-            isShowingProcessed: false
-          };
-        }
-      });
-
-      setUploadedFiles(processedFiles);
-
-      // プログレス完了
-      setProcessingProgress(100);
-      setCurrentProcessingFile(null);
-
-      // 部分失敗チェック
-      const failedCount = uploadedFiles.length - (result.processedFiles?.length || 0);
-      if (failedCount > 0) {
-        const successCount = result.processedFiles?.length || 0;
-        const friendlyError = getFriendlyErrorMessage(`${failedCount}個のファイル処理に失敗しました (${successCount}個は正常に処理されました)`);
-        showError(friendlyError.message, friendlyError.type);
-      }
-      
-    } catch (error) {
-      console.error('Server processing failed:', error);
-      throw new Error(error instanceof Error ? error.message : 'サーバー処理に失敗しました');
-    }
-  };
 
   const applyWatermarkCanvas = (file: File, settings: WatermarkSettings): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -763,18 +653,6 @@ export default function Home() {
     }
   };
 
-  const getFontSizeStep = (currentValue: number): number => {
-    // スマートステップ計算
-    if (currentValue <= 50) {
-      return 1;  // 12-50px: 1px刻み（細かい調整）
-    } else if (currentValue <= 100) {
-      return 2;  // 50-100px: 2px刻み（標準）
-    } else if (currentValue <= 200) {
-      return 5;  // 100-200px: 5px刻み（大きいサイズ）
-    } else {
-      return 10; // 200-500px: 10px刻み（特大サイズ）
-    }
-  };
 
   const adjustFontSizeToStep = (value: number): number => {
     // 境界値を確実に処理
@@ -860,50 +738,9 @@ export default function Home() {
     setError(null);
 
     try {
-      // 自動振り分けロジック（1ファイルのみの再処理）
-      let processedUrl: string;
-      
-      if (file.file.size <= 1.5 * 1024 * 1024) {
-        // クライアント処理
-        processedUrl = await applyWatermarkCanvas(file.file, watermarkSettings);
-      } else {
-        // サーバー処理
-        const formData = new FormData();
-        formData.append('files', file.file);
-        formData.append('settings', JSON.stringify(watermarkSettings));
-
-        const response = await fetch('/api/process-images', {
-          method: 'POST',
-          body: formData,
-        });
-
-        // レスポンスがJSONかどうかをチェック
-        let result;
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          result = await response.json();
-        } else {
-          // JSONでない場合（HTMLエラーページなど）
-          const text = await response.text();
-          if (response.status === 413) {
-            throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
-          } else if (text.includes('Request Entity Too Large')) {
-            throw new Error('ファイルサイズが大きすぎます。ファイル数を減らすか、サイズを小さくしてください。');
-          } else {
-            throw new Error(`サーバーエラーが発生しました (${response.status})`);
-          }
-        }
-
-        if (!result.success) {
-          if (result.code === 'REQUEST_TOO_LARGE') {
-            throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
-          }
-          throw new Error(result.message || 'サーバー処理に失敗しました');
-        }
-
-        processedUrl = result.processedFiles[0].processedDataUrl;
-      }
+      // 🎨 統一処理：全てクライアントサイド処理
+      console.log(`🔄 Reprocessing ${file.file.name} with client-side processing`);
+      const processedUrl = await applyWatermarkCanvas(file.file, watermarkSettings);
       
       // 既存の処理済み画像URLがあれば解放
       if (file.processed) {
@@ -1050,7 +887,7 @@ export default function Home() {
                     ファイルをドラッグ&ドロップ、またはクリックして選択
                   </p>
                   <p className="text-sm text-gray-500">
-                    .jpg/.jpeg ファイル（最大5ファイル、1ファイル3MB以下、総計4.5MB以下）
+                    .jpg/.jpeg ファイル（最大5ファイル、1ファイル3MB以下、総計15MB以下）
                   </p>
                 </div>
               </div>
