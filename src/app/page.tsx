@@ -329,11 +329,11 @@ export default function Home() {
       return '一度にアップロードできるファイルは最大5個までです';
     }
 
-    // 総計15MB以下
+    // 総計4.5MB以下（Vercel制限）
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    const maxTotalSize = 15 * 1024 * 1024; // 15MB
+    const maxTotalSize = 4.5 * 1024 * 1024; // 4.5MB
     if (totalSize > maxTotalSize) {
-      return `ファイルの総サイズが15MBを超えています (${(totalSize / 1024 / 1024).toFixed(1)}MB)`;
+      return `ファイルの総サイズが4.5MBを超えています (${(totalSize / 1024 / 1024).toFixed(1)}MB)`;
     }
 
     return null;
@@ -444,17 +444,17 @@ export default function Home() {
       if (fileCount === 1 && uploadedFiles[0].file.size <= 1.5 * 1024 * 1024) {
         processingMethod = 'CLIENT';
       } 
-      // サーバー処理条件（2-5ファイル かつ 総計15MB以下）
-      else if (fileCount >= 2 && fileCount <= 5 && totalSize <= 15 * 1024 * 1024) {
+      // サーバー処理条件（2-5ファイル かつ 総計4.5MB以下）
+      else if (fileCount >= 2 && fileCount <= 5 && totalSize <= 4.5 * 1024 * 1024) {
         processingMethod = 'SERVER';
       } 
       // 1ファイルで1.5MB超過の場合もサーバー処理
-      else if (fileCount === 1 && uploadedFiles[0].file.size > 1.5 * 1024 * 1024 && totalSize <= 15 * 1024 * 1024) {
+      else if (fileCount === 1 && uploadedFiles[0].file.size > 1.5 * 1024 * 1024 && totalSize <= 4.5 * 1024 * 1024) {
         processingMethod = 'SERVER';
       }
       // 制限超過
       else {
-        throw new Error('ファイルサイズまたは数が制限を超えています');
+        throw new Error('ファイルサイズが制限を超えています。総計4.5MB以下にしてください。');
       }
 
       if (processingMethod === 'CLIENT') {
@@ -1047,7 +1047,7 @@ export default function Home() {
                     ファイルをドラッグ&ドロップ、またはクリックして選択
                   </p>
                   <p className="text-sm text-gray-500">
-                    .jpg/.jpeg ファイル（最大5ファイル、1ファイル3MB以下、総計15MB以下）
+                    .jpg/.jpeg ファイル（最大5ファイル、1ファイル3MB以下、総計4.5MB以下）
                   </p>
                 </div>
               </div>
