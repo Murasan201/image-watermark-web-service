@@ -78,7 +78,7 @@
 ### Vercel Function制限準拠
 - **1ファイル**: 3MB以下
 - **同時処理**: 最大5ファイル
-- **総計**: 15MB以下/リクエスト
+- **総計**: 4.5MB以下/リクエスト（Vercel body size制限）
 - **同時ユーザー**: 1ユーザーのみ処理、他はキュー待機
 
 ### 処理方式：ハイブリッド自動振り分け
@@ -97,7 +97,7 @@
 
 #### サーバー処理（Sharp + Node.js）
 ```
-条件: 2-5ファイル かつ 総計15MB以下
+条件: 2-5ファイル かつ 総計4.5MB以下
 処理時間: 約5-10秒
 使用技術: Sharp（Node.js）
 メリット: 高品質処理、メモリ効率
@@ -115,7 +115,7 @@ function determineProcessingMethod(files) {
   }
   
   // Server処理
-  if (fileCount <= 5 && totalSize <= 15 * 1024 * 1024) {
+  if (fileCount <= 5 && totalSize <= 4.5 * 1024 * 1024) {
     return 'SERVER';
   }
   

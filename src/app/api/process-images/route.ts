@@ -16,6 +16,19 @@ interface WatermarkSettings {
 
 export async function POST(request: NextRequest) {
   try {
+    // Content-Lengthヘッダーをチェック（Vercel制限: 4.5MB）
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > 4.5 * 1024 * 1024) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'アップロードサイズが制限を超えています（最大4.5MB）',
+          code: 'REQUEST_TOO_LARGE'
+        },
+        { status: 413 }
+      );
+    }
+
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
     const settingsJson = formData.get('settings') as string;

@@ -552,9 +552,28 @@ export default function Home() {
 
       setProcessingProgress(70);
 
-      const result = await response.json();
+      // レスポンスがJSONかどうかをチェック
+      let result;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        // JSONでない場合（HTMLエラーページなど）
+        const text = await response.text();
+        if (response.status === 413) {
+          throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
+        } else if (text.includes('Request Entity Too Large')) {
+          throw new Error('ファイルサイズが大きすぎます。ファイル数を減らすか、サイズを小さくしてください。');
+        } else {
+          throw new Error(`サーバーエラーが発生しました (${response.status})`);
+        }
+      }
 
       if (!result.success) {
+        if (result.code === 'REQUEST_TOO_LARGE') {
+          throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
+        }
         throw new Error(result.message || 'サーバー処理に失敗しました');
       }
 
@@ -855,9 +874,28 @@ export default function Home() {
           body: formData,
         });
 
-        const result = await response.json();
+        // レスポンスがJSONかどうかをチェック
+        let result;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          result = await response.json();
+        } else {
+          // JSONでない場合（HTMLエラーページなど）
+          const text = await response.text();
+          if (response.status === 413) {
+            throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
+          } else if (text.includes('Request Entity Too Large')) {
+            throw new Error('ファイルサイズが大きすぎます。ファイル数を減らすか、サイズを小さくしてください。');
+          } else {
+            throw new Error(`サーバーエラーが発生しました (${response.status})`);
+          }
+        }
 
         if (!result.success) {
+          if (result.code === 'REQUEST_TOO_LARGE') {
+            throw new Error('ファイルサイズが大きすぎます。合計4.5MB以下でお試しください。');
+          }
           throw new Error(result.message || 'サーバー処理に失敗しました');
         }
 
