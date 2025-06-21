@@ -50,14 +50,18 @@ export async function POST(request: NextRequest) {
     const settings: WatermarkSettings = JSON.parse(settingsJson);
     
     // デバッグログ
-    console.log('Server processing with settings:', {
-      text: settings.text,
-      fontSize: settings.fontSize,
-      fontFamily: settings.fontFamily,
-      position: settings.position,
-      opacity: settings.opacity,
-      color: settings.color,
-      shadowEnabled: settings.shadowEnabled
+    console.log('Server processing started:', {
+      fileCount: files.length,
+      totalSize: `${(files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(2)}MB`,
+      settings: {
+        text: settings.text,
+        fontSize: settings.fontSize,
+        fontFamily: settings.fontFamily,
+        position: settings.position,
+        opacity: settings.opacity,
+        color: settings.color,
+        shadowEnabled: settings.shadowEnabled
+      }
     });
 
     // ファイル数・サイズ検証
@@ -104,17 +108,20 @@ export async function POST(request: NextRequest) {
 
       const buffer = Buffer.from(await file.arrayBuffer());
       
+      console.log(`Processing file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+      
       try {
-        const processedBuffer = await applyWatermarkSharp(buffer, settings);
+        const processedBuffer = await applyWatermarkSharp(buffer, settings, file.name);
         processedFiles.push({
           originalName: file.name,
           processedBuffer,
           mimeType: 'image/jpeg'
         });
+        console.log(`Successfully processed: ${file.name}`);
       } catch (error) {
         console.error(`Failed to process ${file.name}:`, error);
         return NextResponse.json(
-          { success: false, message: `${file.name} の処理に失敗しました` },
+          { success: false, message: `${file.name} の処理に失敗しました: ${error}` },
           { status: 500 }
         );
       }
@@ -144,7 +151,8 @@ export async function POST(request: NextRequest) {
 
 async function applyWatermarkSharp(
   imageBuffer: Buffer, 
-  settings: WatermarkSettings
+  settings: WatermarkSettings,
+  fileName?: string
 ): Promise<Buffer> {
   const image = sharp(imageBuffer);
   const metadata = await image.metadata();
@@ -153,30 +161,47 @@ async function applyWatermarkSharp(
     throw new Error('画像のメタデータを取得できませんでした');
   }
 
+  console.log(`Image metadata for ${fileName}:`, {
+    width: metadata.width,
+    height: metadata.height,
+    format: metadata.format,
+    channels: metadata.channels
+  });
+
   // ウォーターマークテキストのSVGを生成
   const watermarkSvg = await generateWatermarkSvg(
     settings, 
     metadata.width, 
-    metadata.height
+    metadata.height,
+    fileName
   );
 
   // ウォーターマークを画像に合成
-  const result = await image
-    .composite([{
-      input: Buffer.from(watermarkSvg),
-      top: 0,
-      left: 0,
-    }])
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  try {
+    console.log(`Compositing watermark for ${fileName}...`);
+    const result = await image
+      .composite([{
+        input: Buffer.from(watermarkSvg, 'utf8'),
+        top: 0,
+        left: 0,
+        blend: 'over'
+      }])
+      .jpeg({ quality: 90 })
+      .toBuffer();
 
-  return result;
+    console.log(`Watermark applied successfully for ${fileName}, output size: ${result.length} bytes`);
+    return result;
+  } catch (compositeError) {
+    console.error(`Composite error for ${fileName}:`, compositeError);
+    throw new Error(`ウォーターマーク合成に失敗しました: ${compositeError}`);
+  }
 }
 
 async function generateWatermarkSvg(
   settings: WatermarkSettings,
   imageWidth: number,
-  imageHeight: number
+  imageHeight: number,
+  fileName?: string
 ): Promise<string> {
   // テキストサイズを計算（日本語・英語対応の改善）
   const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(settings.text);
@@ -215,14 +240,16 @@ async function generateWatermarkSvg(
   y = Math.max(settings.fontSize + padding, Math.min(y, imageHeight - padding));
 
   // デバッグログ
-  console.log('SVG generation:', {
+  console.log(`SVG generation for ${fileName}:`, {
     imageSize: `${imageWidth}x${imageHeight}`,
     fontSize: settings.fontSize,
     textWidth,
-    position: `(${x}, ${y})`,
-    text: settings.text,
+    calculatedPosition: `(${x}, ${y})`,
+    requestedPosition: settings.position,
+    text: `"${settings.text}"`,
     fontFamily: getFontFamily(settings.fontFamily),
-    hasJapanese
+    hasJapanese,
+    padding
   });
 
   // SVG定義部分
@@ -255,13 +282,14 @@ async function generateWatermarkSvg(
 
   // 完全なSVG
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
-    <svg width="${imageWidth}" height="${imageHeight}" 
-         viewBox="0 0 ${imageWidth} ${imageHeight}"
-         xmlns="http://www.w3.org/2000/svg">
-      ${defs}
-      ${textElement}
-    </svg>
-  `;
+<svg width="${imageWidth}" height="${imageHeight}" 
+     viewBox="0 0 ${imageWidth} ${imageHeight}"
+     xmlns="http://www.w3.org/2000/svg">
+  ${defs}
+  ${textElement}
+</svg>`;
+
+  console.log(`Generated SVG for ${fileName}:`, svg.substring(0, 200) + '...');
 
   return svg;
 }
