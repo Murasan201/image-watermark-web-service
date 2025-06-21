@@ -438,7 +438,7 @@ export default function Home() {
       const totalSize = uploadedFiles.reduce((sum, file) => sum + file.file.size, 0);
       const fileCount = uploadedFiles.length;
       
-      let processingMethod: 'CLIENT' | 'SERVER';
+      let processingMethod: 'CLIENT' | 'SERVER' | 'CLIENT_MULTI';
       
       // Canvas API（クライアント処理）条件
       if (fileCount === 1 && uploadedFiles[0].file.size <= 1.5 * 1024 * 1024) {

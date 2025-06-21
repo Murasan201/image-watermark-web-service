@@ -313,19 +313,22 @@ async function generateWatermarkSvg(
       break;
   }
 
-  // 座標の境界チェック（中央配置は特別処理）
+  // 座標の境界チェック（中央配置は境界チェックなし）
   if (settings.position === 'center') {
-    // 中央配置の場合は境界チェックを緩めに
-    x = Math.max(textWidth / 2 + padding, Math.min(x, imageWidth - textWidth / 2 - padding));
-    y = Math.max(textHeight / 2 + padding, Math.min(y, imageHeight - textHeight / 2 - padding));
+    // 中央配置の場合は境界チェックしない（そのまま中央座標を使用）
+    console.log(`Center position - no boundary check: x=${x}, y=${y}`);
   } else {
     const minX = padding;
     const maxX = Math.max(minX, imageWidth - textWidth - padding);
     const minY = textHeight + padding;
     const maxY = imageHeight - padding;
     
+    const originalX = x;
+    const originalY = y;
     x = Math.max(minX, Math.min(x, maxX));
     y = Math.max(minY, Math.min(y, maxY));
+    
+    console.log(`Boundary check: (${originalX},${originalY}) -> (${x},${y})`);
   }
   
   console.log(`Position calculation details for ${fileName}:`, {
