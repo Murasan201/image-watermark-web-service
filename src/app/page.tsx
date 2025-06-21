@@ -1121,8 +1121,8 @@ export default function Home() {
                   <option value="Times New Roman">Times New Roman</option>
                   <option value="Helvetica">Helvetica</option>
                   <option value="Noto Sans JP">Noto Sans JP（日本語推奨）</option>
-                  <option value="Roboto">Roboto（モダンサンセリフ）</option>
-                  <option value="Open Sans">Open Sans（読みやすいサンセリフ）</option>
+                  <option value="Roboto">Roboto（シンプル・現代的）</option>
+                  <option value="Open Sans">Open Sans（見やすい・クリア）</option>
                 </select>
               </div>
 
