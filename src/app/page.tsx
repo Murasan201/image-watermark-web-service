@@ -1120,6 +1120,9 @@ export default function Home() {
                   <option value="Georgia">Georgia</option>
                   <option value="Times New Roman">Times New Roman</option>
                   <option value="Helvetica">Helvetica</option>
+                  <option value="Noto Sans JP">Noto Sans JP（日本語推奨）</option>
+                  <option value="Roboto">Roboto（モダンサンセリフ）</option>
+                  <option value="Open Sans">Open Sans（読みやすいサンセリフ）</option>
                 </select>
               </div>
 
