@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 
 interface InvitationCode {
   code: string;
+  codeType: 'monthly' | 'user_specific';
+  month?: string;
+  userName?: string;
+  userDescription?: string;
   expiresAt: string;
   createdAt: string;
   isActive: boolean;
@@ -36,6 +40,15 @@ export default function AdminPage() {
     year: new Date().getFullYear().toString(),
     month: (new Date().getMonth() + 1).toString()
   });
+  
+  // 個別ユーザーキー生成フォーム
+  const [userKeyForm, setUserKeyForm] = useState({
+    userName: '',
+    userDescription: '',
+    expirationDays: '30'
+  });
+  const [isGeneratingUserKey, setIsGeneratingUserKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<'monthly' | 'user_specific'>('monthly');
   const [slackSettings, setSlackSettings] = useState<SlackSettings>({ configured: false });
   const [slackForm, setSlackForm] = useState({
     webhookUrl: '',
@@ -79,13 +92,13 @@ export default function AdminPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(generateForm),
+        body: JSON.stringify({ ...generateForm, codeType: 'monthly' }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setCodesSuccess(`招待コード「${data.code}」を生成しました`);
+        setCodesSuccess(`月次招待コード「${data.code}」を生成しました`);
         fetchCodes(); // 一覧を再取得
       } else {
         setCodesError(data.message || '招待コードの生成に失敗しました');
@@ -94,6 +107,42 @@ export default function AdminPage() {
       setCodesError('サーバーエラーが発生しました');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateUserKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGeneratingUserKey(true);
+    setCodesError('');
+    setCodesSuccess('');
+
+    try {
+      const response = await fetch('/api/admin/invitation-codes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          codeType: 'user_specific',
+          userName: userKeyForm.userName,
+          userDescription: userKeyForm.userDescription,
+          expirationDays: parseInt(userKeyForm.expirationDays)
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCodesSuccess(`個別ユーザーキー「${data.code}」を生成しました（${userKeyForm.userName}様用）`);
+        setUserKeyForm({ userName: '', userDescription: '', expirationDays: '30' }); // フォームリセット
+        fetchCodes(); // 一覧を再取得
+      } else {
+        setCodesError(data.message || '個別ユーザーキーの生成に失敗しました');
+      }
+    } catch (error) {
+      setCodesError('サーバーエラーが発生しました');
+    } finally {
+      setIsGeneratingUserKey(false);
     }
   };
 
@@ -253,41 +302,135 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <form onSubmit={handleGenerateCode} className="flex gap-4 items-end">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">年</label>
-                  <select
-                    value={generateForm.year}
-                    onChange={(e) => setGenerateForm(prev => ({ ...prev, year: e.target.value }))}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              {/* タブ選択 */}
+              <div className="mb-6">
+                <nav className="flex space-x-8">
+                  <button
+                    onClick={() => setActiveTab('monthly')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'monthly'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                   >
-                    {[2025, 2026, 2027, 2028, 2029, 2030].map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">月</label>
-                  <select
-                    value={generateForm.month}
-                    onChange={(e) => setGenerateForm(prev => ({ ...prev, month: e.target.value }))}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    📅 月次コード
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('user_specific')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'user_specific'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                   >
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                      <option key={month} value={month}>{month}月</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={isGenerating}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isGenerating ? '生成中...' : '招待コード生成'}
-                </button>
-              </form>
+                    👤 個別ユーザーキー
+                  </button>
+                </nav>
+              </div>
+
+              {/* 月次コード生成フォーム */}
+              {activeTab === 'monthly' && (
+                <form onSubmit={handleGenerateCode} className="space-y-4">
+                  <div className="flex gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">年</label>
+                      <select
+                        value={generateForm.year}
+                        onChange={(e) => setGenerateForm(prev => ({ ...prev, year: e.target.value }))}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      >
+                        {[2025, 2026, 2027, 2028, 2029, 2030].map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">月</label>
+                      <select
+                        value={generateForm.month}
+                        onChange={(e) => setGenerateForm(prev => ({ ...prev, month: e.target.value }))}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                          <option key={month} value={month}>{month}月</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <button
+                      type="submit"
+                      disabled={isGenerating}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGenerating ? '生成中...' : '月次コード生成'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    💡 指定月の末日まで有効な月次招待コードを生成します（YYYYMM-XXXXX形式）
+                  </p>
+                </form>
+              )}
+
+              {/* 個別ユーザーキー生成フォーム */}
+              {activeTab === 'user_specific' && (
+                <form onSubmit={handleGenerateUserKey} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">ユーザー名 *</label>
+                      <input
+                        type="text"
+                        required
+                        value={userKeyForm.userName}
+                        onChange={(e) => setUserKeyForm(prev => ({ ...prev, userName: e.target.value }))}
+                        placeholder="田中太郎"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">有効期限（日数）</label>
+                      <select
+                        value={userKeyForm.expirationDays}
+                        onChange={(e) => setUserKeyForm(prev => ({ ...prev, expirationDays: e.target.value }))}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      >
+                        <option value="7">7日間</option>
+                        <option value="14">14日間</option>
+                        <option value="30">30日間</option>
+                        <option value="60">60日間</option>
+                        <option value="90">90日間</option>
+                        <option value="365">1年間</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">用途・説明</label>
+                    <textarea
+                      value={userKeyForm.userDescription}
+                      onChange={(e) => setUserKeyForm(prev => ({ ...prev, userDescription: e.target.value }))}
+                      placeholder="例：テストユーザー、特別案件、デモ用など"
+                      rows={3}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <button
+                      type="submit"
+                      disabled={isGeneratingUserKey || !userKeyForm.userName.trim()}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGeneratingUserKey ? '生成中...' : '個別キー生成'}
+                    </button>
+                    
+                    <p className="text-xs text-gray-500">
+                      💡 特定ユーザー専用のキーを生成します（USER-XXXXX形式）
+                    </p>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
 
@@ -413,6 +556,17 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center">
+                          <div className="mr-3">
+                            {code.codeType === 'monthly' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                📅 月次
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                👤 個別
+                              </span>
+                            )}
+                          </div>
                           <p className="text-lg font-medium text-blue-600">
                             {code.code}
                           </p>
@@ -432,6 +586,21 @@ export default function AdminPage() {
                             )}
                           </div>
                         </div>
+                        
+                        {/* 個別ユーザーキーの場合は追加情報を表示 */}
+                        {code.codeType === 'user_specific' && (
+                          <div className="mt-1">
+                            <p className="text-sm font-medium text-gray-700">
+                              👤 {code.userName}
+                            </p>
+                            {code.userDescription && (
+                              <p className="text-sm text-gray-500 mt-1">
+                                {code.userDescription}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        
                         <div className="mt-2 sm:flex sm:justify-between">
                           <div className="sm:flex gap-4 text-sm text-gray-500">
                             <p>作成日: {formatDate(code.createdAt)}</p>

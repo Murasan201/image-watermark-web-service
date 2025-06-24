@@ -13,9 +13,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // コード形式チェック（YYYYMM-XXXXX）
-    const codePattern = /^\d{6}-[A-Z0-9]+$/;
-    if (!codePattern.test(code)) {
+    // コード形式チェック（YYYYMM-XXXXX または USER-XXXXX）
+    const monthlyCodePattern = /^\d{6}-[A-Z0-9]+$/;     // 月次コード: 202501-XXXXX
+    const userSpecificPattern = /^USER-[A-Z0-9]+$/;     // 個別ユーザーキー: USER-XXXXX
+    
+    if (!monthlyCodePattern.test(code) && !userSpecificPattern.test(code)) {
       return NextResponse.json(
         { error: '招待コードの形式が正しくありません' },
         { status: 400 }

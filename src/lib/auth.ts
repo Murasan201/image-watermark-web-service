@@ -4,7 +4,10 @@ import { v4 as uuidv4 } from 'uuid';
 export interface InvitationCode {
   id: number;
   code: string;
-  month: string;
+  code_type?: string;
+  month?: string;
+  user_name?: string;
+  user_description?: string;
   created_at: Date;
   expires_at: Date;
   usage_count: number;
