@@ -14,19 +14,50 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   );
 
-  // 管理画面パス
-  const isAdminPath = request.nextUrl.pathname.startsWith('/admin');
+  // 管理画面パス（UIページのみ）
+  const isAdminPath = request.nextUrl.pathname.startsWith('/admin') && !request.nextUrl.pathname.startsWith('/api/admin');
   
-  // 管理者認証APIパス
+  // 管理者API パス（認証が必要）
+  const isAdminApiPath = request.nextUrl.pathname.startsWith('/api/admin');
+  
+  // 管理者認証APIパス（認証不要）
   const isAdminAuthPath = request.nextUrl.pathname === '/api/admin/auth';
 
-  // 管理画面の処理
-  if (isAdminPath || isAdminAuthPath) {
-    // 管理者認証APIは認証不要
-    if (isAdminAuthPath) {
-      return NextResponse.next();
+  // 管理者認証APIの処理（認証不要）
+  if (isAdminAuthPath) {
+    return NextResponse.next();
+  }
+
+  // 管理者API の処理（認証が必要）
+  if (isAdminApiPath) {
+    const adminToken = request.cookies.get('admin-token')?.value;
+    
+    if (!adminToken) {
+      return NextResponse.json(
+        { success: false, message: '管理者認証が必要です' },
+        { status: 401 }
+      );
     }
 
+    try {
+      // JWT検証
+      const { payload } = await jwtVerify(adminToken, JWT_SECRET);
+      
+      if (payload.type !== 'admin-session') {
+        throw new Error('Invalid admin token');
+      }
+      
+      return NextResponse.next();
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, message: '管理者認証に失敗しました' },
+        { status: 401 }
+      );
+    }
+  }
+
+  // 管理画面UI の処理
+  if (isAdminPath) {
     // 管理者ログインページは認証不要
     if (request.nextUrl.pathname === '/admin/login') {
       return NextResponse.next();
