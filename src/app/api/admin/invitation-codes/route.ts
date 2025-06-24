@@ -128,14 +128,14 @@ async function generateMonthlyCode(year: string, month: string, hasNewColumns: b
   // データベースに保存（マイグレーション前後の対応）
   if (hasNewColumns) {
     await db.query(
-      `INSERT INTO invitation_codes (code, code_type, month, expires_at, created_at, is_active) 
-       VALUES ($1, $2, $3, $4, NOW(), true)`,
+      `INSERT INTO invitation_codes (code, code_type, month, expires_at, is_active) 
+       VALUES ($1, $2, $3, $4, true)`,
       [invitationCode, 'monthly', monthValue, expiresAt]
     );
   } else {
     await db.query(
-      `INSERT INTO invitation_codes (code, month, expires_at, created_at, is_active) 
-       VALUES ($1, $2, $3, NOW(), true)`,
+      `INSERT INTO invitation_codes (code, month, expires_at, is_active) 
+       VALUES ($1, $2, $3, true)`,
       [invitationCode, monthValue, expiresAt]
     );
   }
@@ -199,8 +199,8 @@ async function generateUserSpecificKey(userName: string, userDescription: string
 
   // データベースに保存
   await db.query(
-    `INSERT INTO invitation_codes (code, code_type, user_name, user_description, expires_at, created_at, is_active) 
-     VALUES ($1, $2, $3, $4, $5, NOW(), true)`,
+    `INSERT INTO invitation_codes (code, code_type, user_name, user_description, expires_at, is_active) 
+     VALUES ($1, $2, $3, $4, $5, true)`,
     [invitationCode, 'user_specific', userName.trim(), userDescription?.trim() || null, expiresAt]
   );
 
