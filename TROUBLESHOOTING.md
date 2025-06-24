@@ -579,20 +579,45 @@ await db.query(
 ### 問題9-6: 個別ユーザーキー削除機能エラー
 
 **症状**: `INVALID_REQUEST_METHOD: This Request was not made with an accepted method`  
-**原因**: Vercel Serverless FunctionsでDELETEメソッドの処理問題  
-**解決策（試行中）**: 
-- POST方式の削除APIエンドポイント作成: `/api/admin/invitation-codes/deactivate`
-- フロントエンドをPOSTリクエストに変更
-- **現在の状況**: 依然として解決せず、継続調査中
+**根本原因**: ミドルウェアによる認証処理の問題  
+- 削除API（`/api/admin/invitation-codes/deactivate`）へのリクエストが307リダイレクトされる
+- ミドルウェアが管理者API認証なしのリクエストを`/auth`にリダイレクト
+- POST→リダイレクト→GETの変換でメソッドミスマッチが発生
 
-```javascript
-// 削除機能修正案（POST方式）
-const response = await fetch('/api/admin/invitation-codes/deactivate', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ code }),
-});
+**調査結果**:
+```bash
+# curlテスト結果
+< HTTP/2 307 
+< location: /auth
+# → 管理者認証トークンなしでAPI呼び出し時にリダイレクト発生
 ```
+
+**試行済み解決策**:
+1. **POST方式削除エンドポイント作成**: `/api/admin/invitation-codes/deactivate`
+   - フロントエンドをDELETE→POSTに変更
+   - **結果**: 依然として307リダイレクト発生
+
+2. **ミドルウェア修正（コミット ba22e13）**: 管理者API認証の分離処理
+   - 管理者UI（`/admin`）と管理者API（`/api/admin/*`）の処理を分離
+   - API認証失敗時はJSON応答、UI認証失敗時はリダイレクト
+   ```javascript
+   // ミドルウェア修正内容
+   const isAdminPath = request.nextUrl.pathname.startsWith('/admin') && 
+                      !request.nextUrl.pathname.startsWith('/api/admin');
+   const isAdminApiPath = request.nextUrl.pathname.startsWith('/api/admin');
+   ```
+   - **結果**: コミット後もテストで307リダイレクト継続
+
+**現在の状況**: 
+- 問題の根本原因は特定済み（ミドルウェア認証処理）
+- 複数のアプローチを試行したが未解決
+- 管理画面の他の機能（コード生成、一覧表示）は正常動作
+- **継続調査**: Vercelデプロイ反映待ちまたは追加のミドルウェア修正が必要
+
+**代替案**:
+- 管理画面でのコード削除操作を一時的に無効化
+- データベース直接操作での手動削除
+- フロントエンドでの論理削除表示（APIなしでの非表示処理）
 
 ### 実装完了機能:
 - ✅ 個別ユーザーキー生成（USER-XXXXX形式）
