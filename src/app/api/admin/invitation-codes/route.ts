@@ -309,6 +309,8 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
 
+    console.log('DELETE request - code:', code);
+
     if (!code) {
       return NextResponse.json(
         { success: false, message: 'コードが指定されていません' },
@@ -318,15 +320,32 @@ export async function DELETE(request: NextRequest) {
 
     const db = await getDb();
 
+    // コードの存在確認
+    const existingCode = await db.query(
+      'SELECT code, is_active FROM invitation_codes WHERE code = $1',
+      [code]
+    );
+
+    console.log('Existing code check:', existingCode.rows);
+
+    if (existingCode.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, message: '指定されたコードが見つかりません' },
+        { status: 404 }
+      );
+    }
+
     const result = await db.query(
       'UPDATE invitation_codes SET is_active = false WHERE code = $1',
       [code]
     );
 
+    console.log('Update result:', result.rowCount);
+
     if (result.rowCount === 0) {
       return NextResponse.json(
-        { success: false, message: '指定されたコードが見つかりません' },
-        { status: 404 }
+        { success: false, message: 'コードの無効化に失敗しました' },
+        { status: 500 }
       );
     }
 
@@ -338,7 +357,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Deactivate invitation code error:', error);
     return NextResponse.json(
-      { success: false, message: 'サーバーエラーが発生しました' },
+      { success: false, message: `サーバーエラーが発生しました: ${error.message}` },
       { status: 500 }
     );
   }

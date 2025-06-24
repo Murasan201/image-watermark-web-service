@@ -161,7 +161,14 @@ export default function AdminPage() {
     try {
       const response = await fetch(`/api/admin/invitation-codes?code=${encodeURIComponent(code)}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
 
@@ -172,7 +179,8 @@ export default function AdminPage() {
         setCodesError(data.message || '無効化に失敗しました');
       }
     } catch (error) {
-      setCodesError('サーバーエラーが発生しました');
+      console.error('Delete error:', error);
+      setCodesError(`サーバーエラーが発生しました: ${error.message}`);
     }
   };
 
