@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間後
 
       await db.query(
-        `INSERT INTO admin_sessions (session_id, username, expires_at, created_at) 
-         VALUES ($1, $2, $3, NOW())`,
-        [sessionId, adminUsername, expiresAt]
+        `INSERT INTO admin_sessions (session_token, expires_at, ip_address) 
+         VALUES ($1, $2, $3)`,
+        [token, expiresAt, request.headers.get('x-forwarded-for') || 'unknown']
       );
     } catch (dbError) {
       console.error('Database session save error:', dbError);
