@@ -46,7 +46,7 @@ export default function AuthPage() {
             画像ウォーターマークサービス
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            招待コードを入力してください
+            招待コード（月次）または個別ユーザーキーを入力してください
           </p>
         </div>
         
@@ -61,11 +61,11 @@ export default function AuthPage() {
               type="text"
               required
               className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-              placeholder="202501-XXXXX"
+              placeholder="202501-XXXXX または USER-XXXXX"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               maxLength={20}
-              pattern="[0-9]{6}-[A-Z0-9]+"
+              pattern="([0-9]{6}-[A-Z0-9]+)|(USER-[A-Z0-9]+)"
             />
           </div>
 
