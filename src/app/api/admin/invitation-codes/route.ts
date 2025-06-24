@@ -42,13 +42,32 @@ export async function POST(request: NextRequest) {
   try {
     const { year, month, codeType, userName, userDescription, expirationDays } = await request.json();
 
+    // データベースマイグレーション状況をチェック
+    const db = await getDb();
+    const columnCheckResult = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'invitation_codes' 
+      AND column_name IN ('code_type', 'user_name', 'user_description')
+    `);
+
+    const hasNewColumns = columnCheckResult.rows.length > 0;
+
+    // マイグレーション前は月次コードのみ対応
+    if (!hasNewColumns && codeType === 'user_specific') {
+      return NextResponse.json(
+        { success: false, message: 'データベースマイグレーションが必要です。個別ユーザーキー機能は現在利用できません。' },
+        { status: 503 }
+      );
+    }
+
     // コードタイプ別の処理
-    if (codeType === 'user_specific') {
+    if (codeType === 'user_specific' && hasNewColumns) {
       // 個別ユーザーキー生成
       return await generateUserSpecificKey(userName, userDescription, expirationDays);
     } else {
       // 月次コード生成（従来の処理）
-      return await generateMonthlyCode(year, month);
+      return await generateMonthlyCode(year, month, hasNewColumns);
     }
 
   } catch (error) {
@@ -61,7 +80,7 @@ export async function POST(request: NextRequest) {
 }
 
 // 月次コード生成関数
-async function generateMonthlyCode(year: string, month: string) {
+async function generateMonthlyCode(year: string, month: string, hasNewColumns: boolean = false) {
   // 入力値検証
   if (!year || !month) {
     return NextResponse.json(
@@ -106,12 +125,20 @@ async function generateMonthlyCode(year: string, month: string) {
     );
   }
 
-  // データベースに保存
-  await db.query(
-    `INSERT INTO invitation_codes (code, code_type, month, expires_at, created_at, is_active) 
-     VALUES ($1, $2, $3, $4, NOW(), true)`,
-    [invitationCode, 'monthly', monthValue, expiresAt]
-  );
+  // データベースに保存（マイグレーション前後の対応）
+  if (hasNewColumns) {
+    await db.query(
+      `INSERT INTO invitation_codes (code, code_type, month, expires_at, created_at, is_active) 
+       VALUES ($1, $2, $3, $4, NOW(), true)`,
+      [invitationCode, 'monthly', monthValue, expiresAt]
+    );
+  } else {
+    await db.query(
+      `INSERT INTO invitation_codes (code, month, expires_at, created_at, is_active) 
+       VALUES ($1, $2, $3, NOW(), true)`,
+      [invitationCode, monthValue, expiresAt]
+    );
+  }
 
   // Slack通知送信（エラーがあっても処理は継続）
   try {
@@ -198,25 +225,56 @@ export async function GET() {
   try {
     const db = await getDb();
 
-    const result = await db.query(`
-      SELECT 
-        ic.code,
-        ic.code_type,
-        ic.month,
-        ic.user_name,
-        ic.user_description,
-        ic.expires_at,
-        ic.created_at,
-        ic.is_active,
-        ic.usage_count,
-        COUNT(us.session_id) as active_sessions
-      FROM invitation_codes ic
-      LEFT JOIN user_sessions us ON ic.code = us.code_used
-      GROUP BY ic.code, ic.code_type, ic.month, ic.user_name, ic.user_description, 
-               ic.expires_at, ic.created_at, ic.is_active, ic.usage_count
-      ORDER BY ic.created_at DESC
-      LIMIT 50
+    // 新しいカラムが存在するかチェック
+    const columnCheckResult = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'invitation_codes' 
+      AND column_name IN ('code_type', 'user_name', 'user_description')
     `);
+
+    const hasNewColumns = columnCheckResult.rows.length > 0;
+
+    let result;
+    if (hasNewColumns) {
+      // 新しいスキーマ（マイグレーション後）
+      result = await db.query(`
+        SELECT 
+          ic.code,
+          ic.code_type,
+          ic.month,
+          ic.user_name,
+          ic.user_description,
+          ic.expires_at,
+          ic.created_at,
+          ic.is_active,
+          ic.usage_count,
+          COUNT(us.session_id) as active_sessions
+        FROM invitation_codes ic
+        LEFT JOIN user_sessions us ON ic.code = us.code_used
+        GROUP BY ic.code, ic.code_type, ic.month, ic.user_name, ic.user_description, 
+                 ic.expires_at, ic.created_at, ic.is_active, ic.usage_count
+        ORDER BY ic.created_at DESC
+        LIMIT 50
+      `);
+    } else {
+      // 古いスキーマ（マイグレーション前）
+      result = await db.query(`
+        SELECT 
+          ic.code,
+          ic.month,
+          ic.expires_at,
+          ic.created_at,
+          ic.is_active,
+          ic.usage_count,
+          COUNT(us.session_id) as active_sessions
+        FROM invitation_codes ic
+        LEFT JOIN user_sessions us ON ic.code = us.code_used
+        GROUP BY ic.code, ic.month, ic.expires_at, ic.created_at, ic.is_active, ic.usage_count
+        ORDER BY ic.created_at DESC
+        LIMIT 50
+      `);
+    }
 
     const codes = result.rows.map((row: any) => ({
       code: row.code,

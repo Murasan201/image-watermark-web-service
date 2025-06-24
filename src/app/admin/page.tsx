@@ -49,6 +49,7 @@ export default function AdminPage() {
   });
   const [isGeneratingUserKey, setIsGeneratingUserKey] = useState(false);
   const [activeTab, setActiveTab] = useState<'monthly' | 'user_specific'>('monthly');
+  const [migrationStatus, setMigrationStatus] = useState<'unknown' | 'completed' | 'pending'>('unknown');
   const [slackSettings, setSlackSettings] = useState<SlackSettings>({ configured: false });
   const [slackForm, setSlackForm] = useState({
     webhookUrl: '',
@@ -70,6 +71,12 @@ export default function AdminPage() {
 
       if (data.success) {
         setCodes(data.codes);
+        // 最初のコードでマイグレーション状況を判定
+        if (data.codes.length > 0 && data.codes[0].codeType) {
+          setMigrationStatus('completed');
+        } else {
+          setMigrationStatus('pending');
+        }
       } else {
         setCodesError('招待コード一覧の取得に失敗しました');
       }
@@ -374,6 +381,17 @@ export default function AdminPage() {
 
               {/* 個別ユーザーキー生成フォーム */}
               {activeTab === 'user_specific' && (
+                <>
+                  {migrationStatus === 'pending' && (
+                    <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+                      <p className="font-medium">⚠️ データベースマイグレーションが必要</p>
+                      <p className="text-sm mt-1">
+                        個別ユーザーキー機能を使用するには、データベースマイグレーションを実行してください。
+                        <br />
+                        詳細は <code>MIGRATION_INSTRUCTIONS.md</code> を参照してください。
+                      </p>
+                    </div>
+                  )}
                 <form onSubmit={handleGenerateUserKey} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -430,6 +448,7 @@ export default function AdminPage() {
                     </p>
                   </div>
                 </form>
+                </>
               )}
             </div>
           </div>
