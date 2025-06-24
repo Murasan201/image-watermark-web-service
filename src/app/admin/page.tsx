@@ -159,11 +159,12 @@ export default function AdminPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/invitation-codes?code=${encodeURIComponent(code)}`, {
-        method: 'DELETE',
+      const response = await fetch('/api/admin/invitation-codes/deactivate', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ code }),
       });
 
       if (!response.ok) {
