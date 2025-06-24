@@ -655,6 +655,8 @@ const processImage = async (file) => {
 3. **有効期限切れ** - 2025年1月→6月への更新対応
 4. **ミドルウェア保護** - デバッグエンドポイントの公開設定
 5. **VSCodeリモートSSH環境での接続問題** - Next.jsサーバーアクセス不可（2025/6/17）
+6. **管理者認証システムのトラブルシューティング** - Vercel本番環境での管理画面アクセス（2025/6/18）
+7. **個別ユーザーキー機能実装時の問題群** - データベーススキーマとAPI実装（2025/6/24）
 
 #### 問題5の詳細：VSCodeリモートSSH + リモートデスクトップ環境での接続エラー
 
@@ -746,6 +748,70 @@ curl -I http://localhost:3000
 **最終状態**: ✅ 管理画面ログイン成功、全機能正常動作
 
 **詳細記録**: `TROUBLESHOOTING.md`
+
+#### 問題7の詳細：個別ユーザーキー機能実装時の問題群（2025/6/24）
+
+**背景**: 月次招待コードに加えて個別ユーザーキー機能（USER-XXXXX形式）を追加実装
+
+##### 問題7-1：データベーススキーマ不一致エラー
+**症状**: `column ic.code_type does not exist`
+**原因**: APIが新しいカラムを参照するが、データベースマイグレーション未実行
+**解決策**: 
+- マイグレーション前後の互換性確保コード実装
+- 動的カラム存在チェック機能追加
+- 条件分岐によるSQL生成
+
+##### 問題7-2：データベースカラムサイズ不足
+**症状**: `value too long for type character varying(10)`
+**原因**: `code_type`カラムがVARCHAR(10)だが`user_specific`は13文字
+**解決策**: 
+```sql
+ALTER TABLE invitation_codes 
+ALTER COLUMN code_type TYPE VARCHAR(20);
+```
+
+##### 問題7-3：NOT NULL制約違反
+**症状**: `null value in column "month" violates not-null constraint`
+**原因**: 個別ユーザーキーで`month`をNULLにする必要があるが制約で拒否
+**解決策**: 
+```sql
+ALTER TABLE invitation_codes 
+ALTER COLUMN month DROP NOT NULL;
+```
+
+##### 問題7-4：認証フォームパターン制約
+**症状**: 認証画面で「指定されている形式で入力してください」
+**原因**: HTMLパターン`[0-9]{6}-[A-Z0-9]+`が月次コードのみ対応
+**解決策**: パターンを`([0-9]{6}-[A-Z0-9]+)|(USER-[A-Z0-9]+)`に変更
+
+##### 問題7-5：管理者セッションテーブル不一致
+**症状**: `column "session_id" of relation "admin_sessions" does not exist`
+**原因**: API実装で存在しない`session_id`カラムを参照
+**実際のスキーマ**: `session_token`, `expires_at`, `ip_address`, `created_at`, `id`
+**解決策**: INSERT文を正しいカラム名に修正
+
+##### 問題7-6：個別ユーザーキー削除機能エラー
+**症状**: `INVALID_REQUEST_METHOD: This Request was not made with an accepted method`
+**原因**: Vercel Serverless FunctionsでDELETEメソッドの処理問題
+**解決策（試行中）**: 
+- POST方式の削除APIエンドポイント作成: `/api/admin/invitation-codes/deactivate`
+- フロントエンドをPOSTリクエストに変更
+- **現在の状況**: 依然として解決せず、継続調査中
+
+**予防策**:
+- マイグレーション前後の互換性を事前設計
+- カラムサイズを十分に確保（VARCHAR(20)など）
+- HTMLフォーム制約と認証ロジックの一致確認
+- Serverless環境でのHTTPメソッド制限を考慮した設計
+- テーブルスキーマと実装コードの定期的な整合性チェック
+
+**実装完了機能**:
+✅ 個別ユーザーキー生成（USER-XXXXX形式）
+✅ 月次・個別キー統合管理画面
+✅ タブ式UI（月次コード/個別ユーザーキー）
+✅ Slack通知（両タイプ対応）
+✅ 認証システム（両フォーマット対応）
+⚠️ 削除機能（継続調査中）
 
 ### 📋 次回作業予定（Phase 6: テスト・品質保証）
 

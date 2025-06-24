@@ -487,5 +487,129 @@ LIMIT 50
 
 ---
 
+## 問題9: 個別ユーザーキー機能実装時の問題群
+
+**発生日**: 2025年6月24日  
+**背景**: 月次招待コードに加えて個別ユーザーキー機能（USER-XXXXX形式）を追加実装
+
+### 問題9-1: データベーススキーマ不一致エラー
+
+**症状**: `column ic.code_type does not exist`  
+**原因**: APIが新しいカラムを参照するが、データベースマイグレーション未実行  
+**解決策**: 
+- マイグレーション前後の互換性確保コード実装
+- 動的カラム存在チェック機能追加
+- 条件分岐によるSQL生成
+
+```javascript
+// 動的スキーマチェック実装
+const columnCheckResult = await db.query(`
+  SELECT column_name 
+  FROM information_schema.columns 
+  WHERE table_name = 'invitation_codes' 
+  AND column_name IN ('code_type', 'user_name', 'user_description')
+`);
+
+const hasNewColumns = columnCheckResult.rows.length > 0;
+
+if (hasNewColumns) {
+  // 新しいスキーマ用クエリ
+} else {
+  // 古いスキーマ用クエリ
+}
+```
+
+### 問題9-2: データベースカラムサイズ不足
+
+**症状**: `value too long for type character varying(10)`  
+**原因**: `code_type`カラムがVARCHAR(10)だが`user_specific`は13文字  
+**解決策**: 
+```sql
+ALTER TABLE invitation_codes 
+ALTER COLUMN code_type TYPE VARCHAR(20);
+```
+
+### 問題9-3: NOT NULL制約違反
+
+**症状**: `null value in column "month" violates not-null constraint`  
+**原因**: 個別ユーザーキーで`month`をNULLにする必要があるが制約で拒否  
+**解決策**: 
+```sql
+ALTER TABLE invitation_codes 
+ALTER COLUMN month DROP NOT NULL;
+```
+
+### 問題9-4: 認証フォームパターン制約
+
+**症状**: 認証画面で「指定されている形式で入力してください」  
+**原因**: HTMLパターン`[0-9]{6}-[A-Z0-9]+`が月次コードのみ対応  
+**解決策**: パターンを`([0-9]{6}-[A-Z0-9]+)|(USER-[A-Z0-9]+)`に変更
+
+```javascript
+// 修正前
+pattern="[0-9]{6}-[A-Z0-9]+"
+
+// 修正後  
+pattern="([0-9]{6}-[A-Z0-9]+)|(USER-[A-Z0-9]+)"
+```
+
+### 問題9-5: 管理者セッションテーブル不一致
+
+**症状**: `column "session_id" of relation "admin_sessions" does not exist`  
+**原因**: API実装で存在しない`session_id`カラムを参照  
+**実際のスキーマ**: `session_token`, `expires_at`, `ip_address`, `created_at`, `id`  
+**解決策**: INSERT文を正しいカラム名に修正
+
+```javascript
+// 修正前
+await db.query(
+  `INSERT INTO admin_sessions (session_id, username, expires_at, created_at) 
+   VALUES ($1, $2, $3, NOW())`,
+  [sessionId, adminUsername, expiresAt]
+);
+
+// 修正後
+await db.query(
+  `INSERT INTO admin_sessions (session_token, expires_at, ip_address) 
+   VALUES ($1, $2, $3)`,
+  [token, expiresAt, request.headers.get('x-forwarded-for') || 'unknown']
+);
+```
+
+### 問題9-6: 個別ユーザーキー削除機能エラー
+
+**症状**: `INVALID_REQUEST_METHOD: This Request was not made with an accepted method`  
+**原因**: Vercel Serverless FunctionsでDELETEメソッドの処理問題  
+**解決策（試行中）**: 
+- POST方式の削除APIエンドポイント作成: `/api/admin/invitation-codes/deactivate`
+- フロントエンドをPOSTリクエストに変更
+- **現在の状況**: 依然として解決せず、継続調査中
+
+```javascript
+// 削除機能修正案（POST方式）
+const response = await fetch('/api/admin/invitation-codes/deactivate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code }),
+});
+```
+
+### 実装完了機能:
+- ✅ 個別ユーザーキー生成（USER-XXXXX形式）
+- ✅ 月次・個別キー統合管理画面
+- ✅ タブ式UI（月次コード/個別ユーザーキー）
+- ✅ Slack通知（両タイプ対応）
+- ✅ 認証システム（両フォーマット対応）
+- ⚠️ 削除機能（継続調査中）
+
+### 予防策:
+- マイグレーション前後の互換性を事前設計
+- カラムサイズを十分に確保（VARCHAR(20)など）
+- HTMLフォーム制約と認証ロジックの一致確認
+- Serverless環境でのHTTPメソッド制限を考慮した設計
+- テーブルスキーマと実装コードの定期的な整合性チェック
+
+---
+
 **記録の更新**:
 新しい問題が発生した場合は、このファイルに解決方法を追記してください。
