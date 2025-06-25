@@ -63,7 +63,7 @@ async function getOverviewStats(db: any) {
       COALESCE(SUM(total_file_size_bytes), 0) as month_data_processed,
       COUNT(DISTINCT code_used) as active_codes_count
     FROM daily_stats 
-    WHERE stat_date >= $1 || '-01'
+    WHERE stat_date >= ($1 || '-01')::date
   `, [thisMonth]);
 
   // リアルタイム状況
@@ -97,14 +97,41 @@ async function getOverviewStats(db: any) {
     WHERE processing_started_at >= CURRENT_DATE - INTERVAL '30 days'
   `);
 
+  // データが空の場合のデフォルト値を設定
+  const defaultStats = {
+    today_processing_count: 0,
+    today_file_count: 0,
+    today_data_processed: 0,
+    today_avg_processing_time: 0
+  };
+
+  const defaultMonthStats = {
+    month_processing_count: 0,
+    month_file_count: 0,
+    month_data_processed: 0,
+    active_codes_count: 0
+  };
+
+  const defaultRealtimeStats = {
+    current_processing: 0,
+    current_waiting: 0,
+    active_sessions: 0
+  };
+
+  const defaultErrorStats = {
+    total_failed: 0,
+    total_partial: 0,
+    total_success: 0
+  };
+
   return NextResponse.json({
     success: true,
     overview: {
-      today: todayStats.rows[0],
-      month: monthStats.rows[0],
-      realtime: realtimeStats.rows[0],
-      trend: trendStats.rows,
-      errors: errorStats.rows[0]
+      today: { ...defaultStats, ...todayStats.rows[0] },
+      month: { ...defaultMonthStats, ...monthStats.rows[0] },
+      realtime: { ...defaultRealtimeStats, ...realtimeStats.rows[0] },
+      trend: trendStats.rows || [],
+      errors: { ...defaultErrorStats, ...errorStats.rows[0] }
     }
   });
 }

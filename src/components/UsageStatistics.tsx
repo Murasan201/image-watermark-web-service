@@ -190,7 +190,12 @@ export default function UsageStatistics({ onMigrationRequest }: UsageStatisticsP
             </div>
             <div className="mt-4">
               <button
-                onClick={onMigrationRequest}
+                onClick={async () => {
+                  await onMigrationRequest();
+                  // マイグレーション成功後、統計を再取得
+                  setNeedsMigration(false);
+                  await checkMigrationStatus();
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 マイグレーション実行
