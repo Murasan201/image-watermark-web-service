@@ -32,6 +32,9 @@ export default function AdminPage() {
   const [codesError, setCodesError] = useState('');
   const [codesSuccess, setCodesSuccess] = useState('');
   
+  // デバッグ情報状態
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  
   // Slack設定関連のメッセージ状態
   const [slackError, setSlackError] = useState('');
   const [slackSuccess, setSlackSuccess] = useState('');
@@ -66,11 +69,28 @@ export default function AdminPage() {
 
   const fetchCodes = async () => {
     try {
+      console.log('🔍 Fetching invitation codes...');
       const response = await fetch('/api/admin/invitation-codes');
+      
+      // デバッグ情報を収集
+      const debugData = {
+        url: '/api/admin/invitation-codes',
+        method: 'GET',
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('🔍 API Response:', debugData);
+      
       const data = await response.json();
+      debugData.responseBody = data;
+      setDebugInfo(debugData);
 
       if (data.success) {
         setCodes(data.codes);
+        setCodesError(''); // エラーをクリア
         // 最初のコードでマイグレーション状況を判定
         if (data.codes.length > 0 && data.codes[0].codeType) {
           setMigrationStatus('completed');
@@ -78,10 +98,19 @@ export default function AdminPage() {
           setMigrationStatus('pending');
         }
       } else {
-        setCodesError('招待コード一覧の取得に失敗しました');
+        setCodesError(`招待コード一覧の取得に失敗: ${data.message || '不明なエラー'} (Status: ${response.status})`);
       }
     } catch (error) {
-      setCodesError('サーバーエラーが発生しました');
+      console.error('🚨 Fetch codes error:', error);
+      const errorDebugData = {
+        url: '/api/admin/invitation-codes',
+        method: 'GET',
+        error: error.message,
+        errorType: error.constructor.name,
+        timestamp: new Date().toISOString()
+      };
+      setDebugInfo(errorDebugData);
+      setCodesError(`サーバーエラーが発生しました: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -94,24 +123,52 @@ export default function AdminPage() {
     setCodesSuccess('');
 
     try {
+      console.log('🔍 Generating invitation code...');
+      const requestBody = { ...generateForm, codeType: 'monthly' };
+      
       const response = await fetch('/api/admin/invitation-codes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...generateForm, codeType: 'monthly' }),
+        body: JSON.stringify(requestBody),
       });
 
+      // デバッグ情報を収集
+      const debugData = {
+        url: '/api/admin/invitation-codes',
+        method: 'POST',
+        requestBody,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
+      };
+
       const data = await response.json();
+      debugData.responseBody = data;
+      setDebugInfo(debugData);
+      
+      console.log('🔍 Generate API Response:', debugData);
 
       if (data.success) {
         setCodesSuccess(`月次招待コード「${data.code}」を生成しました`);
         fetchCodes(); // 一覧を再取得
       } else {
-        setCodesError(data.message || '招待コードの生成に失敗しました');
+        setCodesError(`招待コードの生成に失敗: ${data.message || '不明なエラー'} (Status: ${response.status})`);
       }
     } catch (error) {
-      setCodesError('サーバーエラーが発生しました');
+      console.error('🚨 Generate code error:', error);
+      const errorDebugData = {
+        url: '/api/admin/invitation-codes',
+        method: 'POST',
+        requestBody: { ...generateForm, codeType: 'monthly' },
+        error: error.message,
+        errorType: error.constructor.name,
+        timestamp: new Date().toISOString()
+      };
+      setDebugInfo(errorDebugData);
+      setCodesError(`サーバーエラーが発生しました: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -315,6 +372,35 @@ export default function AdminPage() {
               {codesSuccess && (
                 <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
                   {codesSuccess}
+                </div>
+              )}
+
+              {/* デバッグ情報表示 */}
+              {debugInfo && (codesError || codesSuccess) && (
+                <div className="bg-gray-100 border border-gray-400 text-gray-800 px-4 py-3 rounded mb-4">
+                  <details className="cursor-pointer">
+                    <summary className="font-semibold text-sm">🔍 デバッグ情報を表示</summary>
+                    <div className="mt-2 text-xs">
+                      <div className="grid grid-cols-1 gap-2">
+                        <div><strong>URL:</strong> {debugInfo.url}</div>
+                        <div><strong>Method:</strong> {debugInfo.method}</div>
+                        <div><strong>Status:</strong> {debugInfo.status} {debugInfo.statusText}</div>
+                        <div><strong>Timestamp:</strong> {debugInfo.timestamp}</div>
+                        {debugInfo.requestBody && (
+                          <div><strong>Request Body:</strong> <pre className="bg-gray-200 p-2 rounded text-xs overflow-auto">{JSON.stringify(debugInfo.requestBody, null, 2)}</pre></div>
+                        )}
+                        {debugInfo.responseBody && (
+                          <div><strong>Response Body:</strong> <pre className="bg-gray-200 p-2 rounded text-xs overflow-auto">{JSON.stringify(debugInfo.responseBody, null, 2)}</pre></div>
+                        )}
+                        {debugInfo.error && (
+                          <div><strong>Error:</strong> {debugInfo.error} ({debugInfo.errorType})</div>
+                        )}
+                        <div><strong>Headers:</strong> 
+                          <pre className="bg-gray-200 p-2 rounded text-xs overflow-auto">{JSON.stringify(debugInfo.headers || {}, null, 2)}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
                 </div>
               )}
 
