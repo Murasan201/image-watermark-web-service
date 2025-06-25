@@ -95,9 +95,21 @@ export default function AuthPage() {
             </button>
           </div>
           
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <p className="text-xs text-gray-500">
               サブスクリプション契約者のみご利用いただけます
+            </p>
+            <p className="text-xs text-gray-500">
+              ご利用前に{' '}
+              <a 
+                href="https://murasan-net.com/ai-workflows-magazine-webservice-terms-of-use/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                利用規約
+              </a>
+              {' '}をご確認ください
             </p>
           </div>
         </form>
