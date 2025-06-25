@@ -70,15 +70,58 @@ export default function UsageStatistics({ onMigrationRequest }: UsageStatisticsP
   const [needsMigration, setNeedsMigration] = useState(false);
 
   useEffect(() => {
-    fetchOverviewStats();
+    checkMigrationStatus();
   }, []);
+
+  const checkMigrationStatus = async () => {
+    try {
+      setLoading(true);
+      // まずマイグレーション状況を確認
+      const migrationResponse = await fetch('/api/admin/migrate-usage-stats');
+      
+      if (migrationResponse.ok) {
+        const migrationData = await migrationResponse.json();
+        
+        if (migrationData.migrationStatus === 'COMPLETED') {
+          // マイグレーション完了済みの場合、統計を取得
+          await fetchOverviewStats();
+        } else {
+          // マイグレーション未完了の場合
+          setNeedsMigration(true);
+          setError('使用統計機能を利用するには、データベースマイグレーションが必要です。');
+        }
+      } else {
+        // マイグレーション確認APIが失敗した場合、統計APIで判定
+        await fetchOverviewStats();
+      }
+    } catch (error: any) {
+      console.error('Migration status check error:', error);
+      // マイグレーション確認に失敗した場合も統計APIで判定
+      await fetchOverviewStats();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchOverviewStats = async () => {
     try {
-      setLoading(true);
       const response = await fetch('/api/admin/usage-stats?type=overview');
       
       if (!response.ok) {
+        if (response.status === 500) {
+          // 500エラーの場合、レスポンス内容を確認
+          const errorData = await response.json().catch(() => null);
+          if (errorData && (
+            errorData.message?.includes('does not exist') ||
+            errorData.message?.includes('relation') ||
+            errorData.message?.includes('daily_stats') ||
+            errorData.message?.includes('usage_logs')
+          )) {
+            setNeedsMigration(true);
+            setError('使用統計機能を利用するには、データベースマイグレーションが必要です。');
+            return;
+          }
+        }
         throw new Error(`統計取得に失敗しました: ${response.status}`);
       }
 
@@ -87,6 +130,7 @@ export default function UsageStatistics({ onMigrationRequest }: UsageStatisticsP
       if (data.success) {
         setOverviewStats(data.overview);
         setError(null);
+        setNeedsMigration(false);
       } else {
         throw new Error(data.message || '統計取得に失敗しました');
       }
@@ -105,8 +149,6 @@ export default function UsageStatistics({ onMigrationRequest }: UsageStatisticsP
       } else {
         setError(error.message || '統計の取得中にエラーが発生しました');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
