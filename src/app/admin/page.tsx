@@ -375,12 +375,12 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* デバッグ情報表示 - 常に表示（テスト用） */}
-              {debugInfo && (
-                <div className="bg-gray-100 border border-gray-400 text-gray-800 px-4 py-3 rounded mb-4">
-                  <details className="cursor-pointer">
-                    <summary className="font-semibold text-sm">🔍 デバッグ情報を表示</summary>
-                    <div className="mt-2 text-xs">
+              {/* デバッグ情報表示 - 常に表示 */}
+              <div className="bg-gray-100 border border-gray-400 text-gray-800 px-4 py-3 rounded mb-4">
+                <details className="cursor-pointer">
+                  <summary className="font-semibold text-sm">🔍 デバッグ情報を表示</summary>
+                  <div className="mt-2 text-xs">
+                    {debugInfo ? (
                       <div className="grid grid-cols-1 gap-2">
                         <div><strong>URL:</strong> {debugInfo.url}</div>
                         <div><strong>Method:</strong> {debugInfo.method}</div>
@@ -399,10 +399,15 @@ export default function AdminPage() {
                           <pre className="bg-gray-200 p-2 rounded text-xs overflow-auto">{JSON.stringify(debugInfo.headers || {}, null, 2)}</pre>
                         </div>
                       </div>
-                    </div>
-                  </details>
-                </div>
-              )}
+                    ) : (
+                      <div className="text-gray-500">
+                        APIリクエストが実行されると、ここにデバッグ情報が表示されます。<br/>
+                        招待コード一覧取得または生成ボタンをクリックしてください。
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </div>
 
               {/* デバッグ状態表示 */}
               <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mb-4">
