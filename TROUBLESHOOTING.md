@@ -635,5 +635,173 @@ await db.query(
 
 ---
 
+## 問題10: 管理画面の完全機能停止とデバッグ手法の確立
+
+**発生日**: 2025年6月25日  
+**対処日**: 2025年6月25日  
+**ステータス**: ✅ **完全解決** - 管理画面機能復旧 + デバッグ機能追加完了  
+**環境**: Vercel本番環境、管理画面の全機能  
+
+### **症状**：
+- 管理画面アクセス時に「サーバーエラーが発生しました」表示
+- 招待コード一覧が完全に取得不可
+- 招待コード生成機能も全て停止
+- Vercelログに「Method Not Allowed 485」（実際は307リダイレクト）
+
+### **根本原因**：
+**個別ユーザーキー機能追加時のミドルウェア変更による管理者API認証の破綻**
+
+#### 変更前（正常動作）：
+```javascript
+// 管理画面パス
+const isAdminPath = request.nextUrl.pathname.startsWith('/admin');
+
+// 管理画面の処理  
+if (isAdminPath || isAdminAuthPath) {
+  // /api/admin/invitation-codes も /admin で始まるため、この分岐に入る
+  // → 管理者認証処理が正常実行
+}
+```
+
+#### 変更後（問題発生）：
+```javascript
+// 管理画面パス（UIページのみ）
+const isAdminPath = request.nextUrl.pathname.startsWith('/admin') && 
+                    !request.nextUrl.pathname.startsWith('/api/admin');
+
+// 管理者API パス（認証が必要）
+const isAdminApiPath = request.nextUrl.pathname.startsWith('/api/admin');
+
+// 問題：管理者API認証が正しく実行されず、一般ユーザー認証まで到達
+// → /auth への307リダイレクト発生
+```
+
+### **具体的問題箇所**：
+1. **管理者API分岐の不完全性**：`/api/admin/*`パスの認証処理が一般ユーザー認証まで到達
+2. **フォールスルー問題**：管理者認証失敗時に適切な401 JSONレスポンスが返されない
+3. **307リダイレクト**：最終的に一般ユーザー認証で`/auth`リダイレクトが発生
+
+### **解決手順**：
+
+#### Phase 1: 問題の特定（原因調査）
+```bash
+# 個別ユーザーキー機能追加前の最後の正常コミットを特定
+git log --oneline --before="2025-06-24" | head -5
+
+# 問題のあるミドルウェア変更を特定
+git show ad9803b src/middleware.ts
+
+# 変更前後の差分比較
+git show a27c57d:src/middleware.ts  # 正常時
+git show ad9803b:src/middleware.ts  # 問題発生時
+```
+
+#### Phase 2: デバッグ機能の追加
+**管理画面に包括的なデバッグ機能を追加**（今後の問題解決を効率化）
+
+1. **詳細エラー情報表示**：
+   ```javascript
+   // エラーメッセージの改善
+   setCodesError(`招待コード一覧の取得に失敗: ${data.message || '不明なエラー'} (Status: ${response.status})`);
+   ```
+
+2. **常時表示デバッグパネル**：
+   ```javascript
+   // 🔍 デバッグ情報を表示（常に表示）
+   {
+     url: '/api/admin/invitation-codes',
+     method: 'GET',
+     status: response.status,
+     statusText: response.statusText,
+     headers: Object.fromEntries(response.headers.entries()),
+     responseBody: data,
+     timestamp: new Date().toISOString()
+   }
+   ```
+
+3. **コンソールログ強化**：
+   ```javascript
+   console.log('🔍 Fetching invitation codes...');
+   console.log('🔍 API Response:', debugData);
+   ```
+
+#### Phase 3: ミドルウェア認証ロジックの修正
+```javascript
+// 管理者API の処理（認証が必要）
+if (isAdminApiPath) {
+  console.log('Processing admin API path:', request.nextUrl.pathname);
+  const adminToken = request.cookies.get('admin-token')?.value;
+  
+  if (!adminToken) {
+    console.log('No admin token, returning 401');
+    return NextResponse.json(
+      { success: false, message: '管理者認証が必要です' },
+      { status: 401 }
+    );
+  }
+  
+  // JWT検証（省略）
+  // 確実に NextResponse.next() または 401 JSON で終了
+}
+```
+
+#### Phase 4: TypeScriptコンパイルエラー修正
+```bash
+# 全ての catch block を型安全に修正
+find src -name "*.ts*" -exec sed -i 's/} catch (error) {/} catch (error: any) {/g' {} \;
+
+# ビルド確認
+npm run build
+```
+
+### **技術的教訓**：
+
+#### 1. **ミドルウェア変更時の注意点**
+- パス判定ロジック変更時は**全ての条件分岐を検証**
+- 管理者API認証は**独立したフロー**として設計
+- フォールスルー防止の**確実な終了処理**
+
+#### 2. **デバッグ機能の重要性**
+- **常時表示デバッグパネル**で問題の可視化
+- **HTTPステータス・ヘッダー・ボディ**の完全情報表示
+- **コンソールログ**との組み合わせ
+
+#### 3. **個別機能追加時のリスク管理**
+- **既存機能への影響範囲**を事前評価
+- **段階的デプロイ**での動作確認
+- **ロールバック手順**の事前準備
+
+### **確立されたデバッグ手法**：
+
+#### 管理画面での問題調査標準手順
+1. **管理画面アクセス**：エラーメッセージ確認
+2. **「🔍 デバッグ情報を表示」展開**：HTTP通信詳細確認
+3. **ブラウザ開発者ツール**：コンソールログ確認
+4. **Vercelログ**：サーバーサイド情報確認
+
+#### API問題の分析項目
+- **URL・HTTPメソッド**：正しいエンドポイント呼び出し確認
+- **HTTPステータス**：307/401/500等の詳細確認
+- **リクエスト/レスポンスボディ**：データ形式・内容確認
+- **ヘッダー情報**：認証トークン・Content-Type確認
+
+### **予防策**：
+- **ミドルウェア変更時**：必ず管理者API・一般ユーザーAPI両方をテスト
+- **認証ロジック変更時**：認証フロー全体の動作確認
+- **新機能追加時**：既存機能の回帰テスト実施
+- **デバッグ機能**：常に利用可能な状態で保持
+
+### **最終成果**：
+- ✅ **管理画面完全復旧**：招待コード一覧・生成・管理全機能
+- ✅ **デバッグ機能確立**：今後の問題解決効率化
+- ✅ **安定性向上**：ミドルウェア認証ロジックの堅牢化
+- ✅ **保守性向上**：包括的なトラブルシューティング手法
+
+**重要度**: 🔴 **最高**（管理機能完全停止のため）  
+**影響範囲**: 管理者による全サービス運用  
+**技術負債解消**: デバッグ機能追加により今後の問題解決効率化を実現
+
+---
+
 **記録の更新**:
 新しい問題が発生した場合は、このファイルに解決方法を追記してください。
