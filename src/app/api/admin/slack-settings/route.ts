@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
           message: 'Slack通知のテストが成功しました！設定を保存する場合は再度保存してください。'
         });
 
-      } catch (error) {
+      } catch (error: any) {
         return NextResponse.json(
           { success: false, message: 'Slack通知のテスト送信でエラーが発生しました' },
           { status: 400 }
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       message: 'Slack通知設定を保存しました'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Slack settings save error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -171,7 +171,7 @@ export async function GET() {
         maskedUrl: webhookUrl.replace(/\/services\/.*/, '/services/***')
       });
 
-    } catch (error) {
+    } catch (error: any) {
       return NextResponse.json({
         success: true,
         configured: true,
@@ -180,7 +180,7 @@ export async function GET() {
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get Slack settings error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -201,7 +201,7 @@ export async function DELETE() {
       message: 'Slack通知設定を削除しました'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete Slack settings error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -227,7 +227,7 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
     const encryptedData = JSON.parse(setting.setting_value_encrypted);
     return decryptWebhookUrl(encryptedData.encrypted, encryptedData.iv);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get decrypted webhook URL error:', error);
     return null;
   }

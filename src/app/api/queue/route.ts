@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Queue status error:', error);
     return NextResponse.json(
       { success: false, message: 'キュー状態の取得に失敗しました' },
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       canStartImmediately: status === 'processing'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Queue addition error:', error);
     return NextResponse.json(
       { success: false, message: 'キューへの追加に失敗しました' },
@@ -221,7 +221,7 @@ export async function DELETE(request: NextRequest) {
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Queue deletion error:', error);
     return NextResponse.json(
       { success: false, message: 'キューの操作に失敗しました' },
@@ -250,7 +250,7 @@ async function promoteNextQueue(db: any) {
 
       console.log(`Queue promoted: session ${nextQueue.session_id}`);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error promoting next queue:', error);
   }
 }

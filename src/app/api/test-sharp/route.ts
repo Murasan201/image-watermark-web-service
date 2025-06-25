@@ -49,7 +49,7 @@ export async function GET() {
       testImage: `data:image/jpeg;base64,${processedBuffer.toString('base64')}`
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sharp test error:', error);
     return NextResponse.json({
       success: false,

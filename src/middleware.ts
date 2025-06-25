@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
       
       console.log('Admin token valid, proceeding');
       return NextResponse.next();
-    } catch (error) {
+    } catch (error: any) {
       console.log('Admin token invalid:', error.message);
       return NextResponse.json(
         { success: false, message: '管理者認証に失敗しました' },
@@ -95,7 +95,7 @@ export async function middleware(request: NextRequest) {
       }
       
       return NextResponse.next();
-    } catch (error) {
+    } catch (error: any) {
       // トークンが無効な場合はログインページにリダイレクト
       const url = request.nextUrl.clone();
       url.pathname = '/admin/login';

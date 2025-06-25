@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
     });
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Session verification error:', error);
     return NextResponse.json(
       { error: 'サーバーエラーが発生しました' },
@@ -55,7 +55,7 @@ export async function DELETE(request: NextRequest) {
     
     return response;
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Logout error:', error);
     return NextResponse.json(
       { error: 'サーバーエラーが発生しました' },

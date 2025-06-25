@@ -17,7 +17,7 @@ export async function GET() {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
       { success: false, error: (error as Error).message },
       { status: 500 }

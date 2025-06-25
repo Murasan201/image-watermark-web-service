@@ -36,7 +36,7 @@ export async function GET() {
       client.release();
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Debug error:', error);
     return NextResponse.json({
       success: false,

@@ -38,7 +38,7 @@ export async function POST() {
       client.release();
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update error:', error);
     return NextResponse.json({
       success: false,

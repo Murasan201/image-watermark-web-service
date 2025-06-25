@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       message: `タイムアウト: ${timeoutCount}件、クリーンアップ: ${cleanupCount}件`
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Queue cleanup error:', error);
     return NextResponse.json(
       { success: false, message: 'キュークリーンアップに失敗しました' },
@@ -89,7 +89,7 @@ export async function DELETE(request: NextRequest) {
       message: `${resetCount}件のキューを強制リセットしました`
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Queue force reset error:', error);
     return NextResponse.json(
       { success: false, message: 'キューの強制リセットに失敗しました' },
@@ -118,7 +118,7 @@ async function promoteNextQueue(db: any) {
 
       console.log(`Queue promoted: session ${nextQueue.session_id}`);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error promoting next queue:', error);
   }
 }

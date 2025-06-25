@@ -31,7 +31,7 @@ async function getDecryptedWebhookUrl(): Promise<string | null> {
     const encryptedData = JSON.parse(setting.setting_value_encrypted);
     return decryptWebhookUrl(encryptedData.encrypted, encryptedData.iv);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get decrypted webhook URL error:', error);
     return null;
   }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return await generateMonthlyCode(year, month, hasNewColumns);
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Invitation code generation error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -294,7 +294,7 @@ export async function GET() {
       codes
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get invitation codes error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -354,7 +354,7 @@ export async function DELETE(request: NextRequest) {
       message: '招待コードを無効化しました'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Deactivate invitation code error:', error);
     return NextResponse.json(
       { success: false, message: `サーバーエラーが発生しました: ${error.message}` },

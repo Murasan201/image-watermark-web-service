@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin auth error:', error);
     return NextResponse.json(
       { success: false, message: 'サーバーエラーが発生しました' },
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin session check error:', error);
     return NextResponse.json(
       { success: false, message: '認証に失敗しました' },
@@ -171,7 +171,7 @@ export async function DELETE(request: NextRequest) {
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin logout error:', error);
     return NextResponse.json(
       { success: false, message: 'ログアウトに失敗しました' },

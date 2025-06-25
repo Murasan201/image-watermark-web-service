@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           mimeType: 'image/jpeg'
         });
         console.log(`✅ Successfully processed: ${file.name} -> ${processedBuffer.length} bytes`);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Server processing failed for ${file.name}:`, error);
         console.log(`⚠️ Falling back to client-side processing recommendation for ${file.name}`);
         
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       fallbackToClient: false // サーバー処理が成功
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Image processing error:', error);
     return NextResponse.json(
       { success: false, message: '画像処理中にエラーが発生しました' },

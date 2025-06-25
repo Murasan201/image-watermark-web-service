@@ -73,7 +73,7 @@ export default function AdminPage() {
       const response = await fetch('/api/admin/invitation-codes');
       
       // デバッグ情報を収集
-      const debugData = {
+      const debugData: any = {
         url: '/api/admin/invitation-codes',
         method: 'GET',
         status: response.status,
@@ -100,9 +100,9 @@ export default function AdminPage() {
       } else {
         setCodesError(`招待コード一覧の取得に失敗: ${data.message || '不明なエラー'} (Status: ${response.status})`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('🚨 Fetch codes error:', error);
-      const errorDebugData = {
+      const errorDebugData: any = {
         url: '/api/admin/invitation-codes',
         method: 'GET',
         error: error.message,
@@ -135,7 +135,7 @@ export default function AdminPage() {
       });
 
       // デバッグ情報を収集
-      const debugData = {
+      const debugData: any = {
         url: '/api/admin/invitation-codes',
         method: 'POST',
         requestBody,
@@ -157,9 +157,9 @@ export default function AdminPage() {
       } else {
         setCodesError(`招待コードの生成に失敗: ${data.message || '不明なエラー'} (Status: ${response.status})`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('🚨 Generate code error:', error);
-      const errorDebugData = {
+      const errorDebugData: any = {
         url: '/api/admin/invitation-codes',
         method: 'POST',
         requestBody: { ...generateForm, codeType: 'monthly' },
@@ -203,7 +203,7 @@ export default function AdminPage() {
       } else {
         setCodesError(data.message || '個別ユーザーキーの生成に失敗しました');
       }
-    } catch (error) {
+    } catch (error: any) {
       setCodesError('サーバーエラーが発生しました');
     } finally {
       setIsGeneratingUserKey(false);
@@ -236,7 +236,7 @@ export default function AdminPage() {
       } else {
         setCodesError(data.message || '無効化に失敗しました');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete error:', error);
       setCodesError(`サーバーエラーが発生しました: ${error.message}`);
     }
@@ -250,7 +250,7 @@ export default function AdminPage() {
       if (data.success) {
         setSlackSettings(data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch Slack settings:', error);
     }
   };
@@ -287,7 +287,7 @@ export default function AdminPage() {
       } else {
         setSlackError(data.message || 'Slack設定の保存に失敗しました');
       }
-    } catch (error) {
+    } catch (error: any) {
       setSlackError('サーバーエラーが発生しました');
     } finally {
       if (testMode) {
@@ -316,7 +316,7 @@ export default function AdminPage() {
       } else {
         setSlackError(data.message || 'Slack設定の削除に失敗しました');
       }
-    } catch (error) {
+    } catch (error: any) {
       setSlackError('サーバーエラーが発生しました');
     }
   };
@@ -325,7 +325,7 @@ export default function AdminPage() {
     try {
       await fetch('/api/admin/auth', { method: 'DELETE' });
       router.push('/admin/login');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Logout error:', error);
     }
   };

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       message: '招待コードを無効化しました'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Deactivate invitation code error:', error);
     return NextResponse.json(
       { success: false, message: `サーバーエラー: ${error.message}` },
