@@ -228,8 +228,7 @@ if (isAdminPath || isAdminAuthPath) {
 
 **最終的な管理者認証情報**:
 - **URL**: https://image-watermark-web-service.vercel.app/admin/login
-- **管理者ID**: `[ADMIN_USERNAME]`
-- **パスワード**: `[ADMIN_PASSWORD]`
+- **管理者認証**: 環境変数で管理（ADMIN_USERNAME, ADMIN_PASSWORD_HASH）
 
 ---
 
