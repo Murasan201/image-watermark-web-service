@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import UsageStatistics from '@/components/UsageStatistics';
 
 interface InvitationCode {
   code: string;
@@ -51,7 +52,7 @@ export default function AdminPage() {
     expirationDays: '30'
   });
   const [isGeneratingUserKey, setIsGeneratingUserKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<'monthly' | 'user_specific'>('monthly');
+  const [activeTab, setActiveTab] = useState<'monthly' | 'user_specific' | 'statistics'>('monthly');
   const [migrationStatus, setMigrationStatus] = useState<'unknown' | 'completed' | 'pending'>('unknown');
   const [slackSettings, setSlackSettings] = useState<SlackSettings>({ configured: false });
   const [slackForm, setSlackForm] = useState({
@@ -389,6 +390,32 @@ export default function AdminPage() {
     }
   };
 
+  const handleMigrationRequest = async () => {
+    if (!confirm('使用統計ログテーブルのマイグレーションを実行しますか？\n\nこの操作により、データベースに新しいテーブルが作成されます。')) {
+      return;
+    }
+
+    try {
+      setCodesError(''); // エラーをクリア
+      const response = await fetch('/api/admin/migrate-usage-stats', {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`マイグレーション完了！\n\n作成されたテーブル:\n${data.createdTables.join('\n')}\n\n使用統計機能が利用可能になりました。`);
+        // 統計タブを再読み込みするため、ページを再読み込み
+        window.location.reload();
+      } else {
+        setCodesError(`マイグレーション失敗: ${data.message}`);
+      }
+    } catch (error: any) {
+      console.error('Migration error:', error);
+      setCodesError(`マイグレーション実行中にエラーが発生しました: ${error.message}`);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ja-JP');
   };
@@ -499,6 +526,16 @@ export default function AdminPage() {
                     }`}
                   >
                     👤 個別ユーザーキー
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('statistics')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'statistics'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    📊 使用統計
                   </button>
                 </nav>
               </div>
@@ -617,6 +654,13 @@ export default function AdminPage() {
                   </div>
                 </form>
                 </>
+              )}
+
+              {/* 統計タブ */}
+              {activeTab === 'statistics' && (
+                <UsageStatistics 
+                  onMigrationRequest={handleMigrationRequest}
+                />
               )}
             </div>
           </div>

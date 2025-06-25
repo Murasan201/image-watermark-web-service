@@ -307,6 +307,40 @@ export default function Home() {
     };
   };
 
+  // 📊 使用統計ログ記録ヘルパー関数
+  const recordUsageLog = async (logData: {
+    sessionId: string;
+    fileCount: number;
+    totalFileSizeBytes: number;
+    processedFileSizeBytes: number;
+    processingDurationMs: number;
+    processingMethod: string;
+    status: string;
+    errorMessage: string | null;
+    watermarkSettings: WatermarkSettings;
+  }) => {
+    try {
+      const response = await fetch('/api/usage-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(logData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Log recording failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('📊 Usage log recorded successfully:', result.logId);
+      return result;
+    } catch (error) {
+      console.error('📊 Failed to record usage log:', error);
+      throw error;
+    }
+  };
+
   const validateFile = (file: File): string | null => {
     // ファイル形式チェック (.jpg/.jpeg のみ)
     const allowedTypes = ['image/jpeg', 'image/jpg'];
@@ -433,11 +467,15 @@ export default function Home() {
 
     setProcessing(true);
 
+    // 📊 使用統計ログ記録用の変数
+    const startTime = Date.now();
+    const totalSize = uploadedFiles.reduce((sum, file) => sum + file.file.size, 0);
+    const fileCount = uploadedFiles.length;
+    let processedSize = 0;
+    let processingStatus = 'SUCCESS';
+    let errorMessage: string | null = null;
+
     try {
-      // 🎨 新しい統一処理ロジック：全てクライアントサイド処理
-      const totalSize = uploadedFiles.reduce((sum, file) => sum + file.file.size, 0);
-      const fileCount = uploadedFiles.length;
-      
       // ファイル制限チェック
       if (fileCount > 5) {
         throw new Error('一度にアップロードできるファイルは最大5個までです。');
@@ -449,12 +487,40 @@ export default function Home() {
 
       // 🚀 全ファイルをクライアントサイド処理（問題8の根本解決）
       console.log(`🎨 Using unified client-side processing for ${fileCount} files (total: ${(totalSize / 1024 / 1024).toFixed(1)}MB)`);
-      await processImagesClient();
+      
+      const result = await processImagesClient();
+      processedSize = result.processedSize;
+      if (result.failedCount > 0) {
+        processingStatus = result.failedCount === fileCount ? 'FAILED' : 'PARTIAL';
+        errorMessage = `${result.failedCount}個のファイル処理に失敗しました`;
+      }
     } catch (error) {
       console.error('Image processing failed:', error);
-      setError(error instanceof Error ? error.message : '画像処理に失敗しました');
+      processingStatus = 'FAILED';
+      errorMessage = error instanceof Error ? error.message : '画像処理に失敗しました';
+      setError(errorMessage);
     } finally {
       setProcessing(false);
+      
+      // 📊 使用統計ログ記録
+      const processingDuration = Date.now() - startTime;
+      try {
+        await recordUsageLog({
+          sessionId: session?.sessionId || '',
+          fileCount,
+          totalFileSizeBytes: totalSize,
+          processedFileSizeBytes: processedSize || totalSize,
+          processingDurationMs: processingDuration,
+          processingMethod: 'CLIENT',
+          status: processingStatus,
+          errorMessage,
+          watermarkSettings
+        });
+      } catch (logError) {
+        console.warn('📊 Usage log recording failed:', logError);
+        // ログ記録の失敗は処理継続
+      }
+      
       // プログレスリセット
       setProcessingProgress(0);
       setCurrentProcessingFile(null);
@@ -466,6 +532,7 @@ export default function Home() {
   const processImagesClient = async () => {
     const processedFiles: UploadedFile[] = [];
     const failedFiles: string[] = [];
+    let processedTotalSize = 0;
 
     for (let i = 0; i < uploadedFiles.length; i++) {
       const uploadedFile = uploadedFiles[i];
@@ -476,6 +543,9 @@ export default function Home() {
       
       try {
         const processedUrl = await applyWatermarkCanvas(uploadedFile.file, watermarkSettings);
+        
+        // 処理済みファイルサイズを推定（元ファイルサイズを使用）
+        processedTotalSize += uploadedFile.file.size;
         
         // 既存の処理済み画像URLがあれば解放
         if (uploadedFile.processed) {
@@ -511,6 +581,13 @@ export default function Home() {
       const friendlyError = getFriendlyErrorMessage(`${failedFiles.length}個のファイル処理に失敗しました (${successCount}個は正常に処理されました): ${failedFiles.join(', ')}`);
       showError(friendlyError.message, friendlyError.type);
     }
+
+    // 📊 処理結果を返す（統計ログ用）
+    return {
+      processedSize: processedTotalSize,
+      failedCount: failedFiles.length,
+      successCount: uploadedFiles.length - failedFiles.length
+    };
   };
 
 

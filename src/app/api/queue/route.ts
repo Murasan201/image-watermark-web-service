@@ -1,6 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/database';
 
+// 📊 システム状態ログ記録ヘルパー関数
+async function recordSystemStatusLog(db: any) {
+  try {
+    // 現在のキュー・セッション状況を取得
+    const queueStats = await db.query(`
+      SELECT 
+        COUNT(CASE WHEN status = 'waiting' THEN 1 END) as waiting_count,
+        COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing_count
+      FROM processing_queue 
+      WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'
+    `);
+
+    const sessionStats = await db.query(`
+      SELECT COUNT(*) as total_sessions
+      FROM user_sessions 
+      WHERE last_accessed > CURRENT_TIMESTAMP - INTERVAL '1 hour'
+    `);
+
+    const currentHour = new Date().getHours();
+    const stats = queueStats.rows[0];
+    const sessions = sessionStats.rows[0];
+
+    // システム状態ログを記録
+    await db.query(`
+      INSERT INTO system_status_logs (
+        active_queue_count, waiting_queue_count, total_sessions_count,
+        current_processing_sessions, hour_bucket, recorded_at
+      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+    `, [
+      parseInt(stats.processing_count) || 0,
+      parseInt(stats.waiting_count) || 0,
+      parseInt(sessions.total_sessions) || 0,
+      parseInt(stats.processing_count) || 0,
+      currentHour
+    ]);
+
+    console.log(`📊 System status recorded: waiting=${stats.waiting_count}, processing=${stats.processing_count}, sessions=${sessions.total_sessions}`);
+  } catch (error: any) {
+    console.warn('📊 Failed to record system status log:', error.message);
+    // ログ記録失敗は処理継続
+  }
+}
+
 interface QueueItem {
   id: number;
   session_id: string;
@@ -136,6 +179,9 @@ export async function POST(request: NextRequest) {
 
     const queueItem = insertResult.rows[0];
 
+    // 📊 システム状態ログ記録（キュー参加時）
+    await recordSystemStatusLog(db);
+
     return NextResponse.json({
       success: true,
       queueItem,
@@ -187,6 +233,9 @@ export async function DELETE(request: NextRequest) {
       // 次の待機中キューを処理開始状態に更新
       await promoteNextQueue(db);
 
+      // 📊 システム状態ログ記録（処理完了時）
+      await recordSystemStatusLog(db);
+
       return NextResponse.json({
         success: true,
         message: '処理が完了しました',
@@ -213,6 +262,9 @@ export async function DELETE(request: NextRequest) {
       if (deletedItem.status === 'processing') {
         await promoteNextQueue(db);
       }
+
+      // 📊 システム状態ログ記録（キュー削除時）
+      await recordSystemStatusLog(db);
 
       return NextResponse.json({
         success: true,
