@@ -59,6 +59,15 @@ Fix: Problem 8 - Complete resolution of watermark issues via client-side process
 - **Git履歴**: シークレット漏洩時は即座にファイル削除＋履歴削除実行
 - **Claude作業時**: 環境変数ファイル作成後は絶対にコミット処理を行わない
 
+### 認証情報・機密情報管理
+- **厳重禁止**: 管理者ID・パスワード・APIキー等の平文記載をドキュメントファイルに含めない
+- **対象ファイル**: *.md, README.md, TROUBLESHOOTING.md, CLAUDE.md, 仕様書等の全ドキュメント
+- **記載方法**: 
+  - 実際の値: ❌ `ml_imageadmin`, `X7AKUJdb`
+  - 正しい記載: ✅ `[ADMIN_USERNAME]`, `[ADMIN_PASSWORD]`, `環境変数で管理`
+- **発見時対応**: 即座にファイル修正 + Git履歴完全削除 + リモートリポジトリ強制プッシュ
+- **予防策**: ドキュメント作成・更新時は機密情報の平文記載を事前確認
+
 ## 認証システム
 
 ### ユーザー認証（サブスクリプション契約者）

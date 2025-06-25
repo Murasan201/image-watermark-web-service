@@ -3,7 +3,7 @@
 
 -- 1. 新しいカラムを追加
 ALTER TABLE invitation_codes 
-ADD COLUMN IF NOT EXISTS code_type VARCHAR(10) DEFAULT 'monthly',
+ADD COLUMN IF NOT EXISTS code_type VARCHAR(20) DEFAULT 'monthly',
 ADD COLUMN IF NOT EXISTS user_name VARCHAR(100),
 ADD COLUMN IF NOT EXISTS user_description TEXT;
 

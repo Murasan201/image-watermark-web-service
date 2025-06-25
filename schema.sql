@@ -5,7 +5,7 @@
 CREATE TABLE invitation_codes (
     id SERIAL PRIMARY KEY,
     code VARCHAR(20) UNIQUE NOT NULL,    -- YYYYMM-XXXXX形式 または USER-XXXXX形式
-    code_type VARCHAR(10) DEFAULT 'monthly',  -- 'monthly' または 'user_specific'
+    code_type VARCHAR(20) DEFAULT 'monthly',  -- 'monthly' または 'user_specific'
     month VARCHAR(7),                    -- '2025-01' 形式（月次コードのみ）
     user_name VARCHAR(100),              -- 個別ユーザー名（個別コードのみ）
     user_description TEXT,               -- 個別ユーザー説明（個別コードのみ）
