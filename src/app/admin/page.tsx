@@ -242,6 +242,65 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteCode = async (code: string) => {
+    if (!confirm(`招待コード「${code}」を完全に削除しますか？\n※この操作は取り消せません。`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/invitation-codes/delete?code=${encodeURIComponent(code)}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCodesSuccess('招待コードを削除しました');
+        fetchCodes(); // 一覧を再取得
+      } else {
+        setCodesError(data.message || '削除に失敗しました');
+      }
+    } catch (error: any) {
+      console.error('Delete code error:', error);
+      setCodesError(`サーバーエラーが発生しました: ${error.message}`);
+    }
+  };
+
+  const handleBulkDeleteExpiredCodes = async () => {
+    const expiredCount = codes.filter(code => isExpired(code.expiresAt) && !code.isActive).length;
+    
+    if (expiredCount === 0) {
+      setCodesError('削除対象の期限切れ・無効化済みコードはありません');
+      return;
+    }
+
+    if (!confirm(`${expiredCount}件の期限切れ・無効化済みコードを一括削除しますか？\n※この操作は取り消せません。`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/invitation-codes/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deleteExpired: true }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCodesSuccess(`${data.deletedCount}件の期限切れコードを削除しました`);
+        fetchCodes(); // 一覧を再取得
+      } else {
+        setCodesError(data.message || '一括削除に失敗しました');
+      }
+    } catch (error: any) {
+      console.error('Bulk delete error:', error);
+      setCodesError(`サーバーエラーが発生しました: ${error.message}`);
+    }
+  };
+
   const fetchSlackSettings = async () => {
     try {
       const response = await fetch('/api/admin/slack-settings');
@@ -663,12 +722,26 @@ export default function AdminPage() {
           {/* 招待コード一覧 */}
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                招待コード一覧
-              </h3>
-              <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                生成された招待コードの管理
-              </p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    招待コード一覧
+                  </h3>
+                  <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                    生成された招待コードの管理
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {codes.filter(code => isExpired(code.expiresAt) && !code.isActive).length > 0 && (
+                    <button
+                      onClick={handleBulkDeleteExpiredCodes}
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    >
+                      期限切れを一括削除 ({codes.filter(code => isExpired(code.expiresAt) && !code.isActive).length}件)
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
             
             {isLoading ? (
@@ -738,14 +811,25 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      {code.isActive && !isExpired(code.expiresAt) && (
-                        <button
-                          onClick={() => handleDeactivateCode(code.code)}
-                          className="ml-4 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-                        >
-                          無効化
-                        </button>
-                      )}
+                      <div className="flex gap-2 ml-4">
+                        {code.isActive && !isExpired(code.expiresAt) && (
+                          <button
+                            onClick={() => handleDeactivateCode(code.code)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                          >
+                            無効化
+                          </button>
+                        )}
+                        {(isExpired(code.expiresAt) || !code.isActive) && (
+                          <button
+                            onClick={() => handleDeleteCode(code.code)}
+                            className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
+                            title="期限切れまたは無効化済みのコードを完全削除"
+                          >
+                            削除
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </li>
                 ))}
