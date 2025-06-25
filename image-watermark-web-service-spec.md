@@ -89,6 +89,31 @@
   - リッチテキスト形式通知
 - **デバッグ機能**：API通信詳細表示パネル（常時利用可能）
 
+#### 使用統計・監視機能（2025年6月追加）
+- **リアルタイム統計ダッシュボード**：Chart.js による視覚的統計表示
+  - 今日の処理回数・ファイル数・データ処理量
+  - 過去7日間のトレンドグラフ（Line Chart）
+  - 処理結果統計（成功・部分失敗・失敗の円グラフ）
+  - リアルタイムキュー状況（処理中・待機中・システム負荷）
+
+- **Vercel使用量分析**：有料プラン検討支援
+  - 関数実行回数推定（月次処理回数）
+  - データ転送量追跡（処理済みファイルサイズ累計）
+  - ピーク時間帯・同時ユーザー数分析
+  - 有料プラン移行タイミング判断指標
+
+- **詳細ログ収集**：自動統計データ蓄積
+  - 画像処理実行ログ（処理時間・ファイル数・サイズ・エラー状況）
+  - 日次統計集計（パフォーマンス最適化用）
+  - システム状態ログ（キュー・負荷・セッション監視）
+  - 招待コード別使用状況トラッキング
+
+- **データベース管理**：
+  - ワンクリックマイグレーション（管理画面から実行）
+  - 自動テーブル作成（usage_logs, daily_stats, system_status_logs）
+  - インデックス最適化・パフォーマンス対応
+  - 空データ対応・エラー耐性設計
+
 ### 3.8 同時処理制御
 
 - **キューシステム**：1ユーザーのみ処理、他は順番待ち
@@ -137,10 +162,61 @@
   - 認証API（Neon PostgreSQL）
   - キューシステム・セッション管理
   - ~~サーバーサイド画像加工~~（廃止済み - 2025年6月21日）
+  - 使用統計API・分析システム（2025年6月追加）
 - **DB**：Neon PostgreSQL（無料プラン）
+- **可視化**：Chart.js + react-chartjs-2（統計ダッシュボード）
 - **デプロイ**：Vercel CLIによる自動デプロイ
 
-### 5.1 フォント実装状況（2025年6月更新）
+### 5.1 使用統計システム技術仕様（2025年6月追加）
+
+#### データベーススキーマ
+```sql
+-- 画像処理実行ログテーブル
+usage_logs (
+  id, session_id, code_used, processing_started_at, processing_completed_at,
+  processing_duration_ms, file_count, total_file_size_bytes, processed_file_size_bytes,
+  processing_method, status, error_message, watermark_font_size, watermark_position,
+  user_agent, ip_address, created_at
+)
+
+-- 日次統計集計テーブル（パフォーマンス最適化）
+daily_stats (
+  id, stat_date, code_used, total_sessions, total_processing_count,
+  total_file_count, total_file_size_bytes, total_processing_time_ms,
+  success_count, failed_count, partial_count, client_processing_count,
+  server_processing_count, avg_processing_time_ms, avg_file_size_bytes,
+  created_at, updated_at
+)
+
+-- システム状態ログテーブル（負荷監視）
+system_status_logs (
+  id, active_queue_count, waiting_queue_count, total_sessions_count,
+  current_processing_sessions, peak_concurrent_users, estimated_function_invocations,
+  estimated_data_transfer_mb, recorded_at, hour_bucket, created_at
+)
+```
+
+#### API エンドポイント
+```
+POST /api/usage-logs              - 使用ログ記録（自動実行）
+GET  /api/admin/usage-stats       - 統計データ取得（管理者専用）
+POST /api/admin/migrate-usage-stats - データベースマイグレーション
+GET  /api/admin/migrate-usage-stats - マイグレーション状況確認
+```
+
+#### フロントエンド技術
+- **Chart.js 4.x**: ライン・ドーナツ・バーチャート対応
+- **react-chartjs-2**: React統合・レスポンシブ対応
+- **Tailwind CSS**: 統計ダッシュボードUI・カード型レイアウト
+- **TypeScript**: 完全型安全・統計データ型定義
+
+#### 自動データ収集
+- **画像処理時**: 透明な統計収集（ユーザー操作不要）
+- **キュー操作時**: システム負荷状況の自動記録
+- **セッション管理**: アクティブユーザー数の追跡
+- **エラー記録**: 処理失敗・部分失敗の詳細ログ
+
+### 5.2 フォント実装状況（2025年6月更新）
 
 #### システムフォント（ブラウザ標準）
 - **Arial, Georgia, Times New Roman, Helvetica**: Canvas API経由で安全に利用可能

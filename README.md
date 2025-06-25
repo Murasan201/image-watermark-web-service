@@ -14,7 +14,9 @@ A web service that allows users to batch apply watermarks to JPEG images and dow
 
 ### Authentication & Management
 - **Monthly Invitation Codes**: Subscription-based access with YYYYMM-XXXXX format codes
+- **Individual User Keys**: Custom expiration periods (7-3650 days) for specific users
 - **Admin Dashboard**: Generate invitation codes, view usage statistics, manage Slack notifications
+- **Usage Analytics**: Real-time monitoring with Chart.js visualizations for Vercel billing optimization
 - **Session Management**: Persistent sessions until month-end for users, 24-hour JWT tokens for admins
 
 ### Advanced Features
@@ -30,6 +32,7 @@ A web service that allows users to batch apply watermarks to JPEG images and dow
 - **Backend**: Vercel Serverless Functions
 - **Database**: Neon PostgreSQL
 - **Image Processing**: HTML5 Canvas API, Sharp (Node.js)
+- **Data Visualization**: Chart.js, react-chartjs-2
 - **Authentication**: JWT, bcrypt
 - **Deployment**: Vercel
 - **Additional**: JSZip, Slack Webhooks
@@ -101,13 +104,19 @@ A web service that allows users to batch apply watermarks to JPEG images and dow
 
 ## 🗄 Database Schema
 
-The application uses 5 main tables:
+The application uses 8 main tables:
 
+### Core Tables
 - `invitation_codes` - Monthly invitation code management
 - `user_sessions` - User session tracking
 - `admin_sessions` - Admin session management
 - `admin_settings` - Admin configuration (Slack webhooks)
 - `processing_queue` - Queue system for concurrent processing control
+
+### Usage Analytics Tables (Added June 2025)
+- `usage_logs` - Detailed image processing execution logs
+- `daily_stats` - Pre-aggregated daily statistics for performance
+- `system_status_logs` - Queue and system load monitoring
 
 ## 🔐 Authentication
 
@@ -121,6 +130,32 @@ The application uses 5 main tables:
 - **Method**: Fixed username/password with JWT
 - **Session**: 24-hour valid tokens
 - **Features**: Code generation, statistics, Slack notifications
+
+## 📊 Usage Analytics
+
+### Real-time Dashboard
+- **Today's Metrics**: Processing count, file count, data volume
+- **Trend Analysis**: 7-day processing trends with interactive Line charts
+- **Error Distribution**: Success/Partial/Failed ratio with Doughnut charts
+- **Queue Monitoring**: Real-time processing and waiting queue status
+
+### Vercel Billing Optimization
+- **Function Invocations**: Monthly processing count estimation
+- **Data Transfer**: Processed file size tracking
+- **Peak Analysis**: Hour-based usage patterns and concurrent users
+- **Billing Insights**: Automated recommendations for plan upgrades
+
+### Automatic Data Collection
+- **Processing Logs**: Duration, file count, size, success rate
+- **System Metrics**: Queue wait times, session counts, load monitoring
+- **Code Analytics**: Usage by invitation code for subscription tracking
+- **Performance Data**: Average processing times and error rates
+
+### Setup & Migration
+1. **Access Admin Panel**: Navigate to `/admin` and login
+2. **Go to Statistics**: Click "📊 使用統計" tab
+3. **Run Migration**: Click "マイグレーション実行" for first-time setup
+4. **View Analytics**: Instant access to comprehensive usage data
 
 ## 🎨 Watermark Features
 
@@ -159,10 +194,16 @@ The application uses 5 main tables:
 - `POST /api/admin/auth` - Admin login
 - `GET /api/admin/invitation-codes` - List invitation codes
 - `POST /api/admin/invitation-codes` - Generate new codes
+- `DELETE /api/admin/invitation-codes` - Delete expired codes
 - `GET /api/admin/slack-settings` - Get Slack settings
 
+### Usage Analytics
+- `GET /api/admin/usage-stats` - Get comprehensive usage statistics
+- `POST /api/usage-logs` - Record processing execution logs
+- `POST /api/admin/migrate-usage-stats` - Initialize statistics database
+
 ### Processing
-- `POST /api/process-images` - Server-side image processing
+- `POST /api/process-images` - Server-side image processing (deprecated)
 - `GET /api/queue` - Check processing queue status
 - `POST /api/queue/cleanup` - Queue cleanup (cron)
 
@@ -193,10 +234,23 @@ ENCRYPT_KEY=aes_encryption_key_32_chars
 
 ## 🔍 Monitoring & Maintenance
 
+### Error Tracking & Performance
 - **Error Logging**: Comprehensive error tracking and user-friendly messages
-- **Queue Management**: Automatic cleanup of stale processing sessions
+- **Usage Analytics**: Real-time monitoring of processing performance and system load
+- **Queue Management**: Automatic cleanup of stale processing sessions with monitoring
+- **Performance Metrics**: Processing times, success rates, and throughput analysis
+
+### Administrative Tools
 - **Session Cleanup**: Automated removal of expired sessions
 - **Slack Integration**: Real-time notifications for admin activities
+- **Usage Reports**: Detailed statistics for billing and capacity planning
+- **Database Migration**: One-click setup for analytics features
+
+### Vercel Optimization
+- **Billing Insights**: Function invocation and data transfer tracking
+- **Load Analysis**: Peak usage identification and capacity planning
+- **Performance Monitoring**: Response times and error rate tracking
+- **Automated Alerts**: Threshold-based notifications for plan upgrades
 
 ## 📞 Support
 
