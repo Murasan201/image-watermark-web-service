@@ -375,8 +375,8 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* デバッグ情報表示 */}
-              {debugInfo && (codesError || codesSuccess) && (
+              {/* デバッグ情報表示 - 常に表示（テスト用） */}
+              {debugInfo && (
                 <div className="bg-gray-100 border border-gray-400 text-gray-800 px-4 py-3 rounded mb-4">
                   <details className="cursor-pointer">
                     <summary className="font-semibold text-sm">🔍 デバッグ情報を表示</summary>
@@ -403,6 +403,15 @@ export default function AdminPage() {
                   </details>
                 </div>
               )}
+
+              {/* デバッグ状態表示 */}
+              <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mb-4">
+                <div className="text-sm">
+                  <strong>デバッグ状態:</strong> debugInfo: {debugInfo ? '設定済み' : '未設定'}, 
+                  codesError: {codesError ? `"${codesError}"` : '空'}, 
+                  codesSuccess: {codesSuccess ? `"${codesSuccess}"` : '空'}
+                </div>
+              </div>
 
               {/* タブ選択 */}
               <div className="mb-6">
