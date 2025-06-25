@@ -39,9 +39,12 @@ export async function middleware(request: NextRequest) {
 
   // 管理者API の処理（認証が必要）
   if (isAdminApiPath) {
+    console.log('Processing admin API path:', request.nextUrl.pathname);
     const adminToken = request.cookies.get('admin-token')?.value;
+    console.log('Admin token exists:', !!adminToken);
     
     if (!adminToken) {
+      console.log('No admin token, returning 401');
       return NextResponse.json(
         { success: false, message: '管理者認証が必要です' },
         { status: 401 }
@@ -56,8 +59,10 @@ export async function middleware(request: NextRequest) {
         throw new Error('Invalid admin token');
       }
       
+      console.log('Admin token valid, proceeding');
       return NextResponse.next();
     } catch (error) {
+      console.log('Admin token invalid:', error.message);
       return NextResponse.json(
         { success: false, message: '管理者認証に失敗しました' },
         { status: 401 }
