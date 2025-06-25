@@ -23,6 +23,15 @@ export async function middleware(request: NextRequest) {
   // 管理者認証APIパス（認証不要）
   const isAdminAuthPath = request.nextUrl.pathname === '/api/admin/auth';
 
+  // デバッグログ追加
+  console.log('Middleware Debug:', {
+    pathname: request.nextUrl.pathname,
+    isPublicPath,
+    isAdminPath,
+    isAdminApiPath,
+    isAdminAuthPath
+  });
+
   // 管理者認証APIの処理（認証不要）
   if (isAdminAuthPath) {
     return NextResponse.next();
