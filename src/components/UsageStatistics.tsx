@@ -94,7 +94,12 @@ export default function UsageStatistics({ onMigrationRequest }: UsageStatisticsP
       console.error('Overview stats fetch error:', error);
       
       // データベーステーブルが存在しない場合の判定
-      if (error.message.includes('does not exist') || error.message.includes('table')) {
+      if (error.message.includes('does not exist') || 
+          error.message.includes('table') || 
+          error.message.includes('relation') ||
+          error.message.includes('daily_stats') ||
+          error.message.includes('usage_logs') ||
+          error.message.includes('system_status_logs')) {
         setNeedsMigration(true);
         setError('使用統計機能を利用するには、データベースマイグレーションが必要です。');
       } else {
