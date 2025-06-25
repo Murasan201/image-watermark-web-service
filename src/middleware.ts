@@ -32,6 +32,11 @@ export async function middleware(request: NextRequest) {
     isAdminAuthPath
   });
 
+  // 公開パスはそのまま通す（最優先）
+  if (isPublicPath) {
+    return NextResponse.next();
+  }
+
   // 管理者認証APIの処理（認証不要）
   if (isAdminAuthPath) {
     return NextResponse.next();
@@ -101,11 +106,6 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/admin/login';
       return NextResponse.redirect(url);
     }
-  }
-
-  // 公開パスはそのまま通す
-  if (isPublicPath) {
-    return NextResponse.next();
   }
 
   // 一般ユーザーの認証チェック
